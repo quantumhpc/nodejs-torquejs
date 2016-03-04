@@ -1,0 +1,5 @@
+{
+        "username": "root",
+        "serverName": "pbsserver",
+        "secretAccessKey": "/root/.ssh/id_rsa"
+}
