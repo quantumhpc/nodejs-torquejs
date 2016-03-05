@@ -18,7 +18,7 @@ function spawnSshProcess(command,username,serverName,serverKey,remote_cmd){
 
 //Takes an array to convert to JSON tree with an array of descending keys and the value of the last key
 function jsonifyQmgr(output){
-    var results=[];
+    var results={};
     for (var i = 0; i < output.length; i++) {
         if (output[i].indexOf('=')!== -1){
             // Split key and value to 0 and 1
@@ -29,12 +29,12 @@ function jsonifyQmgr(output){
             //TODO: do this more effentiely
             switch (keys.length){
                 case 3:
-                    results[keys[1]] = results[keys[1]] || []; // initializes array if it is undefined
+                    results[keys[1]] = results[keys[1]] || {}; // initializes array if it is undefined
                     results[keys[1]][keys[2].trim()] = value.trim();
                     break;
                 case 4:
-                    results[keys[1].trim()] = results[keys[1]] || []; // initializes array if it is undefined
-                    results[keys[1]][keys[2].trim()] = results[keys[1]][keys[2].trim()] || []; // initializes array if it is undefined
+                    results[keys[1].trim()] = results[keys[1]] || {}; // initializes array if it is undefined
+                    results[keys[1]][keys[2].trim()] = results[keys[1]][keys[2].trim()] || {}; // initializes array if it is undefined
                     results[keys[1]][keys[2].trim()][keys[3].trim()] = value.trim();
                     break;
             }
@@ -45,7 +45,7 @@ function jsonifyQmgr(output){
 }
 
 function jsonifyQnodes(output){
-    var results=[];
+    var results={};
     for (var i = 0; i < output.length; i++) {
         if (output[i].indexOf('=')!== -1){
             // Split key and value to 0 and 1
@@ -57,7 +57,7 @@ function jsonifyQnodes(output){
 }
 
 function jsonifyQstat(output){
-    var results=[];
+    var results={};
     var status = {'Q' : 'Queued', 'R' : 'Running', 'C' : 'Completed', 'E' : 'Error'};
     console.log(output);
     results = {
@@ -80,7 +80,7 @@ function qnodes_js(nodeName){
     var output = spawnSshProcess(ssh_exec, pbs_creds.username, pbs_creds.serverName, pbs_creds.secretAccessKey, remote_cmd);
     //Separate each node
     var output = output.split('\n\n');
-    var nodes = [];
+    var nodes = {};
     //Loop on each node, the last one is blank due to \n\n
     for (var i = 0; i < output.length-1; i++) {
         output[i]  = output[i].trim().split(/[\n,]+/);
@@ -101,7 +101,7 @@ function qstat_js(jobId){
     var output = spawnSshProcess(ssh_exec, pbs_creds.username, pbs_creds.serverName, pbs_creds.secretAccessKey, remote_cmd);
     output = output.split('\n');
     // First 2 lines are not relevant
-    var jobs = [];
+    var jobs = {};
     for (var i = 2; i < output.length-1; i++) {
         output[i]  = output[i].trim().split(/[\s]+/);
         //1st entry is the job Id
