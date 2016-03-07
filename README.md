@@ -2,7 +2,7 @@
 Nodejs module to interact with a PBS/Torque Server
 
 ## Introduction
-For now only basic function are implemented: **qmgr -c 'p s'**, **qstat**, **qnodes** and **qnodes(nodename)**.
+For now only basic function are implemented: **qmgr -c 'p s'**, **qstat**, **qdel(jobId)**, **qnodes** and **qnodes(nodename)**.
 It uses SSH to remotly connect to the PBS/Torque headnode and return information as a JSON array.
 
 ## Basic usage
