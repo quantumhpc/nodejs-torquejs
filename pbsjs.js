@@ -46,7 +46,10 @@ function jsonifyQmgr(output){
 
 function jsonifyQnodes(output){
     var results={};
-    for (var i = 0; i < output.length; i++) {
+    // Store node name
+    results["name"] = output[0];
+    // Look for properties
+    for (var i = 1; i < output.length; i++) {
         if (output[i].indexOf('=')!== -1){
             // Split key and value to 0 and 1
             var data = output[i].split('=');
@@ -59,13 +62,13 @@ function jsonifyQnodes(output){
 function jsonifyQstat(output){
     var results={};
     var status = {'Q' : 'Queued', 'R' : 'Running', 'C' : 'Completed', 'E' : 'Error'};
-    console.log(output);
     results = {
-        'name'      :   output[1],
-        'user'      :   output[2],
-        'time'      :   output[3],
-        'status'    :   status[output[4]],
-        'queue'     :   output[5],
+        "jobId"     :   output[0],
+        "name"      :   output[1],
+        "user"      :   output[2],
+        "time"      :   output[3],
+        "status"    :   status[output[4]],
+        "queue"     :   output[5],
     };
     return results;
 }
@@ -80,12 +83,11 @@ function qnodes_js(nodeName){
     var output = spawnSshProcess(ssh_exec, pbs_creds.username, pbs_creds.serverName, pbs_creds.secretAccessKey, remote_cmd);
     //Separate each node
     var output = output.split('\n\n');
-    var nodes = {};
+    var nodes = [];
     //Loop on each node, the last one is blank due to \n\n
     for (var i = 0; i < output.length-1; i++) {
         output[i]  = output[i].trim().split(/[\n,]+/);
-        //1st entry is the node name
-        nodes[output[i][0]] = jsonifyQnodes(output[i]);
+        nodes.push(jsonifyQnodes(output[i]));
     }
     return nodes;
 }
@@ -101,11 +103,10 @@ function qstat_js(jobId){
     var output = spawnSshProcess(ssh_exec, pbs_creds.username, pbs_creds.serverName, pbs_creds.secretAccessKey, remote_cmd);
     output = output.split('\n');
     // First 2 lines are not relevant
-    var jobs = {};
+    var jobs = [];
     for (var i = 2; i < output.length-1; i++) {
         output[i]  = output[i].trim().split(/[\s]+/);
-        //1st entry is the job Id
-        jobs[output[i][0]] = jsonifyQstat(output[i]);
+        jobs.push(jsonifyQstat(output[i]));
     }
     return jobs;
 }
