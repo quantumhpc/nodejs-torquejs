@@ -47,7 +47,9 @@ var jobs_info = pbsjs.qstat_js();
 
 >qnodes_js:
 ```
-[ node1: [ state: 'free',
+[ { 
+    name: 'node1',
+    state: 'free',
     power_state: 'Running',
     np: '1',
     ntype: 'cluster',
@@ -69,30 +71,43 @@ var jobs_info = pbsjs.qstat_js();
     uname: 'Linux server_name 1.1.1-001.x86_64 #1 SMP Tue Jan 01 00:00:00 UTC 2016 x86_64',
     opsys: 'linux',
     mom_service_port: '15002',
-    mom_manager_port: '15003' ],
-  node2: [ state: 'down',
+    mom_manager_port: '15003' 
+    },
+    {
+    name: 'node2',
+    state: 'down',
     power_state: 'Running',
     np: '1',
     ntype: 'cluster',
     mom_service_port: '15002',
-    mom_manager_port: '15003' ] ]
+    mom_manager_port: '15003' 
+    } ]
 ```
 
 >qstat_js:
 ```
-[ '0.pbsserver': { name: 'testJob0',
+[ {
+    jobId: '0.pbsserver',
+    name: 'testJob0',
     user: 'user',
     time: '0',
     status: 'Completed',
-    queue: 'batch' },
-  '1.pbsserver': { name: 'testJob1',
+    queue: 'batch' 
+    },
+    {
+    jobId: '1.pbsserver', 
+    name: 'testJob1',
     user: 'user',
     time: '0',
     status: 'Running',
-    queue: 'batch' },
-  '2.pbsserver': { name: 'testJob2',
+    queue: 'batch' 
+    },
+    {
+    jobId: '3.pbsserver',
+    name: 'testJob2',
     user: 'user',
     time: '0',
     status: 'Queued',
-    queue: 'batch' }]
+    queue: 'batch' 
+    }]
 ```
