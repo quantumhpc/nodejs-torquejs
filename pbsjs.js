@@ -1,18 +1,26 @@
 var cproc = require('child_process');
 var spawn = cproc.spawnSync;
 
-// SSH executable
-var ssh_exec = "ssh";
+
 // Load credentials to remotly connect to PBS server
 var pbs_creds = require("./config/pbsserver.json");
+// SSH executable
+var ssh_exec = "/usr/bin/ssh";
+// Local Shell
+var local_exec = "/bin/sh";
 
-
-// Parse the remote command and transform it for child_procss
+// Parse the command and return stdout of the process depending on the method
 // TODO: treat errors
-function spawnSshProcess(command,username,serverName,serverKey,remote_cmd){
-    var sshCommand = [username + "@" + serverName,"-i",serverKey].concat(remote_cmd.split(" "));
-    //Return stdout of the process
-    return spawn(command, sshCommand, { encoding : 'utf8' }).stdout;
+function spawnProcess(remote_cmd){
+    // Remote pbs server
+    if (pbs_creds.method == "ssh"){
+        var spawnCommand = [pbs_creds.username + "@" + pbs_creds.serverName,"-i",pbs_creds.secretAccessKey].concat(remote_cmd.split(" "));
+        return spawn(ssh_exec, spawnCommand, { encoding : 'utf8' });
+    }
+    // Local server on the same machine as the node process
+    if (pbs_creds.method == "local"){
+        return spawn(local_exec, remote_cmd.split(" "), { encoding : 'utf8' });
+    }
 }
 
 
@@ -80,7 +88,7 @@ function qnodes_js(nodeName){
     if(nodeName != undefined) {
         remote_cmd += " " + nodeName;
     }
-    var output = spawnSshProcess(ssh_exec, pbs_creds.username, pbs_creds.serverName, pbs_creds.secretAccessKey, remote_cmd);
+    var output = spawnProcess(remote_cmd);
     //Separate each node
     var output = output.split('\n\n');
     var nodes = [];
@@ -100,7 +108,7 @@ function qstat_js(jobId){
     if(jobId != undefined) {
         remote_cmd += " -f " + jobId;
     }
-    var output = spawnSshProcess(ssh_exec, pbs_creds.username, pbs_creds.serverName, pbs_creds.secretAccessKey, remote_cmd);
+    var output = spawnProcess(remote_cmd).stdout;
     output = output.split('\n');
     // First 2 lines are not relevant
     var jobs = [];
@@ -109,6 +117,27 @@ function qstat_js(jobId){
         jobs.push(jsonifyQstat(output[i]));
     }
     return jobs;
+}
+
+// Interface for qdel
+// Delete the specified job Id
+function qdel_js(jobId){
+    var remote_cmd = "qdel";
+    if(jobId == undefined) {
+        return 'Please specify the jobId';
+    }else{
+        // Default print everything
+        remote_cmd += " " + jobId;
+    }
+    var output = spawnProcess(remote_cmd);
+    // Transmit the error if any
+    if (output.stderr){
+        return output.stderr;
+    }
+    // Job deleted returns 0 exit code
+    if (output.status == 0){
+        return 'Job successfully deleted';   
+    }
 }
 
 // Interface for qmgr
@@ -121,7 +150,7 @@ function qmgr_js(qmgrCmd){
         // Default print everything
         remote_cmd += "'p s'";
     }
-    var output = spawnSshProcess(ssh_exec, pbs_creds.username, pbs_creds.serverName, pbs_creds.secretAccessKey, remote_cmd);
+    var output = spawnProcess(remote_cmd).stdout;
     output = output.split('\n');
     var results = jsonifyQmgr(output);
     
@@ -132,4 +161,5 @@ module.exports = {
     qnodes_js   : qnodes_js,
     qstat_js    : qstat_js,
     qmgr_js     : qmgr_js,
+    qdel_js     : qdel_js,
 };
