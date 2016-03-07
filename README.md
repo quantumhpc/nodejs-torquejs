@@ -10,9 +10,14 @@ Edit `./config/pbsserver.json"` with your information
 ```
 var pbsjs = require("./pbsjs.js")
 
+// Gather server information
 var server_info = pbsjs.qmgr_js();
+// Gather nodes information
 var nodes_info = pbsjs.qnodes_js();
+// Gather job list
 var jobs_info = pbsjs.qstat_js();
+// Cancel a job
+pbsjs.qdel_js(jobId);
 ```
 
 ### Output exemples
