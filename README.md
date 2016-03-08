@@ -23,12 +23,13 @@ pbsjs.qdel_js(jobId);
 ### Output exemples
 >qmgr_js:
 ```
-[ queue: [ batch: [ queue_type: 'Execution',
+[ queues: [ { queue_type: 'Execution',
       'resources_default.nodes': '1',
       'resources_default.walltime': '01:00:00',
       enabled: 'True',
-      started: 'True' ] ],
-  server: [ scheduling: 'True',
+      started: 'True',
+      name: 'batch' } ],
+  server: { scheduling: 'True',
     acl_hosts: 'pbsserver',
     managers: 'root@pbsserver',
     operators: 'root@pbsserver',
@@ -43,11 +44,11 @@ pbsjs.qdel_js(jobId);
     down_on_error: 'True',
     mom_job_sync: 'True',
     keep_completed: '300',
-    next_job_number: '4',
+    next_job_number: '34',
     moab_array_compatible: 'True',
     nppcu: '1',
     timeout_for_job_delete: '120',
-    timeout_for_job_requeue: '120' ] ]
+    timeout_for_job_requeue: '120' } ]
 ```
 
 >qnodes_js:

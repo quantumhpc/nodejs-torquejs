@@ -24,30 +24,42 @@ function spawnProcess(remote_cmd){
 }
 
 
-//Takes an array to convert to JSON tree with an array of descending keys and the value of the last key
+//Takes an array to convert to JSON tree for queues and server properties
 function jsonifyQmgr(output){
-    var results={};
+    var results=[];
+    // JSON output will be indexed by queues and server
+    results['queue']=[];
+    results['queues']=[];
+    results['server']={};
+    //Loop on properties
     for (var i = 0; i < output.length; i++) {
         if (output[i].indexOf('=')!== -1){
             // Split key and value to 0 and 1
             var data = output[i].split('=');
             // Split at each space to create a node in JSON
             var keys = data[0].trim().split(' ');
-            var value = data[1];
+            var value = data[1].trim();
             //TODO: do this more effentiely
-            switch (keys.length){
-                case 3:
-                    results[keys[1]] = results[keys[1]] || {}; // initializes array if it is undefined
-                    results[keys[1]][keys[2].trim()] = value.trim();
+            switch (keys[1].trim()){
+                case 'server':
+                    results['server'][keys[2].trim()] = value;
                     break;
-                case 4:
-                    results[keys[1].trim()] = results[keys[1]] || {}; // initializes array if it is undefined
-                    results[keys[1]][keys[2].trim()] = results[keys[1]][keys[2].trim()] || {}; // initializes array if it is undefined
-                    results[keys[1]][keys[2].trim()][keys[3].trim()] = value.trim();
+                case 'queue':
+                    // Order array under the queue name to easily store properties
+                    results['queue'][keys[2].trim()] = results['queue'][keys[2].trim()] || {}; // initializes array if it is undefined
+                    results['queue'][keys[2].trim()][keys[3].trim()] = value;
                     break;
             }
         }
     }
+    // Loop on the sub-array 'queue' to reorganise it more JSON-like
+    for (var x in results['queue']){
+        // Add the name of the queue
+        results['queue'][x]['name'] = x;
+        results['queues'].push(results['queue'][x]);
+    }
+    // Clear the sub-array
+    delete results['queue'];
     
     return results;
 }
@@ -88,7 +100,7 @@ function qnodes_js(nodeName){
     if(nodeName != undefined) {
         remote_cmd += " " + nodeName;
     }
-    var output = spawnProcess(remote_cmd);
+    var output = spawnProcess(remote_cmd).stdout;
     //Separate each node
     var output = output.split('\n\n');
     var nodes = [];
@@ -120,11 +132,11 @@ function qstat_js(jobId){
 }
 
 // Interface for qdel
-// Delete the specified job Id
+// Delete the specified job Id and return the message and the status code
 function qdel_js(jobId){
     var remote_cmd = "qdel";
     if(jobId == undefined) {
-        return 'Please specify the jobId';
+        return ['Please specify the jobId',1];
     }else{
         // Default print everything
         remote_cmd += " " + jobId;
@@ -132,11 +144,11 @@ function qdel_js(jobId){
     var output = spawnProcess(remote_cmd);
     // Transmit the error if any
     if (output.stderr){
-        return output.stderr;
+        return [output.stderr,output.status];
     }
     // Job deleted returns 0 exit code
     if (output.status == 0){
-        return 'Job successfully deleted';   
+        return ['Job ' + jobId + ' successfully deleted',0];   
     }
 }
 
