@@ -71,10 +71,39 @@ function jsonifyQnodes(output){
     // Look for properties
     for (var i = 1; i < output.length; i++) {
         if (output[i].indexOf('=')!== -1){
-            // Split key and value to 0 and 1
+           // Split key and value to 0 and 1
             var data = output[i].split('=');
-            results[data[0].trim()] = data[1].trim();
+            results[data.shift().trim()] = data.toString().trim();
+                
         }
+    }
+    // Reorganise jobs into an array with jobId & jobProcs
+    if (results['jobs']){
+        var runningJobs = [];
+        var jobData = results['jobs'].trim().split(/[,/]+/);
+        // Parse jobs and forget trailing comma
+        for (var j = 0; j < jobData.length-1; j+=2) {
+            var newJob = {
+                jobId       :   jobData[j+1],
+                jobProcs    :   jobData[j],
+            }
+            runningJobs.push(newJob);
+        }
+        results['jobs'] = runningJobs;
+    }
+    // Reorganise status
+    if (results['status']){
+        var statusData = results['status'].trim().split(/[,]+/);
+        for (var k = 0; k < statusData.length; k+=2) {
+            // Skip jobs inside status for now : TODO: store those information
+            if (statusData[k] == 'jobs'){
+                while (statusData[k] != 'state'){
+                    k++;
+                }
+            }
+            results[statusData[k]] = statusData[k+1];
+        }
+        delete results['status'];
     }
     return results;
 }
@@ -101,12 +130,15 @@ function qnodes_js(nodeName){
         remote_cmd += " " + nodeName;
     }
     var output = spawnProcess(remote_cmd).stdout;
+    //Detect empty values
+    output = output.replace(/=,/g,"=null,");
     //Separate each node
     var output = output.split('\n\n');
     var nodes = [];
     //Loop on each node, the last one is blank due to \n\n
     for (var i = 0; i < output.length-1; i++) {
-        output[i]  = output[i].trim().split(/[\n,]+/);
+        //Split at lign breaks
+        output[i]  = output[i].trim().split(/[\n;]+/);
         nodes.push(jsonifyQnodes(output[i]));
     }
     return nodes;
