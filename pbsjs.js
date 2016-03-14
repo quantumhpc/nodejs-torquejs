@@ -1,25 +1,21 @@
 var cproc = require('child_process');
 var spawn = cproc.spawnSync;
 
-
 // Load credentials to remotly connect to PBS server
-var pbs_creds = require("./config/pbsserver.json");
-// SSH executable
-var ssh_exec = "/usr/bin/ssh";
-// Local Shell
-var local_exec = "/bin/sh";
+var pbs_config = require("./config/pbsserver.json");
 
 // Parse the command and return stdout of the process depending on the method
 // TODO: treat errors
 function spawnProcess(remote_cmd){
+    remote_cmd = pbs_config.binaries_dir + remote_cmd;
     // Remote pbs server
-    if (pbs_creds.method == "ssh"){
-        var spawnCommand = [pbs_creds.username + "@" + pbs_creds.serverName,"-i",pbs_creds.secretAccessKey].concat(remote_cmd.split(" "));
-        return spawn(ssh_exec, spawnCommand, { encoding : 'utf8' });
+    if (pbs_config.method == "ssh"){
+        var spawnCommand = [pbs_config.username + "@" + pbs_config.serverName,"-i",pbs_config.secretAccessKey].concat(remote_cmd.split(" "));
+        return spawn(pbs_config.ssh_exec, spawnCommand, { encoding : 'utf8' });
     }
     // Local server on the same machine as the node process
-    if (pbs_creds.method == "local"){
-        return spawn(local_exec, remote_cmd.split(" "), { encoding : 'utf8' });
+    if (pbs_config.method == "local"){
+        return spawn(pbs_config.local_shell, remote_cmd.split(" "), { encoding : 'utf8' });
     }
 }
 
@@ -133,7 +129,7 @@ function qnodes_js(nodeName){
     //Detect empty values
     output = output.replace(/=,/g,"=null,");
     //Separate each node
-    var output = output.split('\n\n');
+    output = output.split('\n\n');
     var nodes = [];
     //Loop on each node, the last one is blank due to \n\n
     for (var i = 0; i < output.length-1; i++) {

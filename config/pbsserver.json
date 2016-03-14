@@ -1,6 +1,9 @@
 {
         "method"                : "ssh",
+        "ssh_exec"              : "/usr/bin/ssh",
         "username"              : "root",
         "serverName"            : "pbsserver",
-        "secretAccessKey"       : "/root/.ssh/id_rsa"
+        "secretAccessKey"       : "/root/.ssh/id_rsa",
+        "local_shell"           : "/bin/sh",
+        "binaries_dir"          : "/usr/local/bin/"
 }
