@@ -258,7 +258,7 @@ function qscript_js(jobArgs, localPath){
 
 // Return the list of nodes
 function qnodes_js(pbs_config,nodeName){
-    var remote_cmd = pbs_config.binaries_dir + "qnodes2";
+    var remote_cmd = pbs_config.binaries_dir + "qnodes";
     // Info on a specific node
     if(nodeName != undefined) {
         remote_cmd += " " + nodeName;
@@ -379,7 +379,6 @@ function qsub_js(pbs_config,qsubArgs){
         };  
     }
 }
-
 
 module.exports = {
     qnodes_js           : qnodes_js,
