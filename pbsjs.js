@@ -4,8 +4,14 @@ var fs = require("fs");
 var path = require("path");
 
 // Parse the command and return stdout of the process depending on the method
+/*
+    spawnCmd                :   shell command   /   [file, destinationDir], 
+    spawnType               :   shell           /   copy, 
+    spawnDirection          :   null            /   send || retrieve, 
+    pbs_config
+*/
 // TODO: treat errors
-function spawnProcess(spawnCmd, spawnType, pbs_config){
+function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
     var spawnExec;
     switch (spawnType){
         case "shell":
@@ -20,7 +26,7 @@ function spawnProcess(spawnCmd, spawnType, pbs_config){
                     break; 
             }
             break;
-        //Copy send the 2 files in an array
+        //Copy the files according to the spawnCmd array : 0 is the file, 1 is the destination dir
         case "copy":
             // Special case if we can use a shared file system
             if (pbs_config.useSharedDir){
@@ -30,7 +36,17 @@ function spawnProcess(spawnCmd, spawnType, pbs_config){
                     // Build the scp command
                     case "ssh":
                         spawnExec = pbs_config.scp_exec;
-                        spawnCmd = ["-i",pbs_config.secretAccessKey,spawnCmd[0],pbs_config.username + "@" + pbs_config.serverName+":"+spawnCmd[1]];
+                        switch (spawnDirection){
+                            case "send":
+                                var file    = spawnCmd[0];
+                                var destDir = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[1];
+                                break;
+                            case "retrieve":
+                                var file    = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[0];
+                                var destDir = spawnCmd[1];
+                                break;
+                        }
+                        spawnCmd = ["-i",pbs_config.secretAccessKey,file,destDir]
                         break;
                     case "local":
                         spawnExec = pbs_config.local_copy;
@@ -55,7 +71,7 @@ function createJobWorkDir(pbs_config){
     var jobWorkingDir = path.join(pbs_config.working_dir,createUID());
     
     //Create workdir
-    var mkdirOutput = spawnProcess("[ -d "+jobWorkingDir+" ] || mkdir "+jobWorkingDir,"shell",pbs_config);
+    var mkdirOutput = spawnProcess("[ -d "+jobWorkingDir+" ] || mkdir "+jobWorkingDir,"shell", null, pbs_config);
     
     //TODO:handles error
     return jobWorkingDir;
@@ -160,6 +176,30 @@ function jsonifyQstat(output){
     return results;
 }
 
+function jsonifyQstatF(output){
+    var results={};
+    // First line is Job Id
+    results['jobId'] = output[0].split(':')[1].trim();
+    
+    // Look for properties
+    for (var i = 1; i < output.length; i++) {
+        if (output[i].indexOf(' = ')!== -1){
+            // Split key and value to 0 and 1
+            var data = output[i].split(' = ');
+            results[data[0].trim()] = data[1].trim();
+        }
+    }
+    
+    // Reorganise variable list into a sub-array
+    if (results['Variable_List']){
+        var variables = results['Variable_List'].trim().split(/[=,]+/);
+        results['Variable_List'] = {};
+        for (var k = 0; k < variables.length; k+=2) {
+            results['Variable_List'][variables[k]] = variables[k+1];
+        }
+    }
+    return results;
+}
 
 
 // Generate the script to run the job and write it to the specified path
@@ -272,7 +312,7 @@ function qnodes_js(pbs_config, nodeName, callback){
         remote_cmd += " " + nodeName;
     }
     
-    var output = spawnProcess(remote_cmd,"shell",pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -298,6 +338,9 @@ function qnodes_js(pbs_config, nodeName, callback){
 function qstat_js(pbs_config, jobId, callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
+    // Boolean to indicate if we want the job list
+    var jobList = true;
+    
     for (var i = 0; i < arguments.length; i++) {
         args.push(arguments[i]);
     }
@@ -314,23 +357,33 @@ function qstat_js(pbs_config, jobId, callback){
     if (args.length == 1){
         jobId = args.pop();
         remote_cmd += " -f " + jobId;
+        jobList = false;
     }
-    
-    var output = spawnProcess(remote_cmd,"shell",pbs_config);
-    
+    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr))
     }
     
-    output = output.stdout.split('\n');
-    // First 2 lines are not relevant
-    var jobs = [];
-    for (var i = 2; i < output.length-1; i++) {
-        output[i]  = output[i].trim().split(/[\s]+/);
-        jobs.push(jsonifyQstat(output[i]));
+    // If no error but zero length, the user is not authorized
+    if (output.stdout.length == 0){
+        return callback(new Error('You are not authorized to consult that job'));
     }
-    return callback(null, jobs);
+    
+    if (jobList){
+        output = output.stdout.split('\n');
+        // First 2 lines are not relevant
+        var jobs = [];
+        for (var i = 2; i < output.length-1; i++) {
+            output[i]  = output[i].trim().split(/[\s]+/);
+            jobs.push(jsonifyQstat(output[i]));
+        }
+        return callback(null, jobs);
+    }else{
+        output = output.stdout.replace(/\n\t/g,"").split('\n');
+        output = jsonifyQstatF(output);
+        return callback(null, output);
+    }
 }
 
 // Interface for qdel
@@ -357,7 +410,7 @@ function qdel_js(pbs_config,jobId,callback){
         // Default print everything
         remote_cmd += " " + jobId;
     }
-    var output = spawnProcess(remote_cmd,"shell",pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -390,7 +443,7 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
         // TODO : handles complex qmgr commands
         remote_cmd += args.pop();
     }
-    var output = spawnProcess(remote_cmd,"shell",pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -407,6 +460,11 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
 // Interface for qsub
 // Submit a script by its absolute path
 // Takes as args an array of required files to run with and to send to the server with the script in 0
+/* Return {
+    callack(message, jobId, jobWorkingDir)
+}
+*/
+
 function qsub_js(pbs_config, qsubArgs, callback){
     var remote_cmd = pbs_config.binaries_dir + "qsub";
     if(qsubArgs.length < 1) {
@@ -419,7 +477,7 @@ function qsub_js(pbs_config, qsubArgs, callback){
     
     // Send files by the copy command defined
     for (var i = 0; i < qsubArgs.length; i++){
-        var copyCmd = spawnProcess([qsubArgs[i],jobWorkingDir],"copy",pbs_config);
+        var copyCmd = spawnProcess([qsubArgs[i],jobWorkingDir],"copy","send",pbs_config);
         if (copyCmd.stderr){
             return callback(new Error(copyCmd.stderr.replace(/\n/g,"")));
         }
@@ -432,19 +490,112 @@ function qsub_js(pbs_config, qsubArgs, callback){
     remote_cmd += " -d " + jobWorkingDir;
     
     // Submit
-    var output = spawnProcess(remote_cmd,"shell",pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr.replace(/\n/g,"")));
     }
     
+    var jobId = output.stdout.replace(/\n/g,"");
     return callback(null, { 
-            "message"   : 'Job ' + output.stdout.replace(/\n/g,"") + ' submitted',
+            "message"   : 'Job ' + jobId + ' submitted',
+            "jobId"     : jobId,
             "path"      : jobWorkingDir
         });
 }
 
+// Interface to retrieve the files from a completed job
+// Takes the jobId
+/* Return {
+    callack(message)
+}*/
 
+function qfind_js(pbs_config, jobId, callback){
+    
+    // Check if the user is the owner of the job
+    qstat_js(pbs_config,jobId, function(err,data){
+        if(err){
+            return callback(err,data)
+        }
+        
+        // Check if the user downloads the appropriate files
+        var jobWorkingDir = path.resolve(data["Variable_List"]["PBS_O_WORKDIR"]);
+        
+        // Remote find command
+        // TOOD: put in config file
+        var remote_cmd = "find " + jobWorkingDir + " -type f";
+        remote_cmd += "&& find " + jobWorkingDir + " -type d";
+        
+        // List the content of the working dir
+        var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+        // Transmit the error if any
+        if (output.stderr){
+            return callback(new Error(output.stderr.replace(/\n/g,"")));
+        }
+        output = output.stdout.split('\n');
+        
+        var fileList        = [];
+        fileList.files      = [];
+        fileList.folders    = [];
+        var files = true;
+        
+        for (var i=0; i<output.length; i++){
+            var filePath = output[i];
+            if (filePath.length > 0){
+                
+                // When the cwd is returned, we have the folders
+                if (path.resolve(filePath) === path.resolve(jobWorkingDir)){
+                    files = false;
+                }
+                if (files){
+                    fileList.files.push(path.resolve(output[i]));
+                }else{
+                    fileList.folders.push(path.resolve(output[i]));
+                }
+            }
+        }
+        return callback(null, fileList);
+        
+    })
+
+}
+
+function qretrieve_js(pbs_config, jobId, fileList, localDir, callback){
+    
+    // Check if the user is the owner of the job
+    qstat_js(pbs_config,jobId, function(err,data){
+        if(err){
+            return callback(err,data)
+        }
+        
+        // Check if the user downloads the appropriate files
+        var jobWorkingDir = path.resolve(data["Variable_List"]["PBS_O_WORKDIR"]);
+        
+        for (var file in fileList){
+            var filePath = fileList[file];
+            
+            // Compare the file location with the working dir of the job
+            if(path.dirname(filePath) !== jobWorkingDir){
+                return callback(new Error(path.basename(filePath) + ' is not related to the job ' + jobId));
+            }
+            
+            // Retrieve the file
+            // TODO: treat individual error on each file
+            var copyCmd = spawnProcess([filePath,localDir],"copy","retrieve",pbs_config);
+            if (copyCmd.stderr){
+                return callback(new Error(copyCmd.stderr.replace(/\n/g,"")));
+            }
+        }
+        return callback(null,{
+            "message"   : 'Files for the job ' + jobId + ' have all been retrieved in ' + localDir
+        });
+        
+    })
+
+}
+
+
+    
 module.exports = {
     qnodes_js           : qnodes_js,
     qstat_js            : qstat_js,
@@ -452,4 +603,6 @@ module.exports = {
     qdel_js             : qdel_js,
     qsub_js             : qsub_js,
     qscript_js          : qscript_js,
+    qretrieve_js        : qretrieve_js,
+    qfind_js            : qfind_js,
 };
