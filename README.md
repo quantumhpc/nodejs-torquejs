@@ -19,7 +19,6 @@ var pbs_config = {
 };
 var pbsjs = require("./pbsjs.js")
 
-
 // Generate a submission script with the parameters in jobArgs and save it inside localJobDir
 pbsjs.qscript_js(jobArgs, localJobDir, callback(err,data))
 
@@ -27,10 +26,13 @@ pbsjs.qscript_js(jobArgs, localJobDir, callback(err,data))
 pbsjs.qsub_js(pbs_config, [submissionScript, jobFiles, ..], callback(err,data))
 
 // Gather server information
-var server_info = pbsjs.qmgr_js();
+pbsjs.qmgr_js(pbs_config, callback);
 
 // Gather node list
-pbsjs.qnodes_js(pbs_config, callback(err,data))
+pbsjs.qnodes_js(pbs_config, callback(err,data));
+
+// Gather node info
+pbsjs.qnodes_js(pbs_config, nodeName, callback(err,data));
 
 // Gather job list
 pbsjs.qstat_js(pbs_config, callback(err,data));
