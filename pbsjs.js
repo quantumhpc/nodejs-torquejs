@@ -1,3 +1,20 @@
+/* 
+* Copyright (C) 2015-2016 Quantum HPC Inc.
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU Affero General Public License as
+* published by the Free Software Foundation, either version 3 of the
+* License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU Affero General Public License for more details.
+*
+* You should have received a copy of the GNU Affero General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 var cproc = require('child_process');
 var spawn = cproc.spawnSync;
 var fs = require("fs");
@@ -18,7 +35,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
             switch (pbs_config.method){
                 case "ssh":
                     spawnExec = pbs_config.ssh_exec;
-                    spawnCmd = [pbs_config.username + "@" + pbs_config.serverName,"-i",pbs_config.secretAccessKey].concat(spawnCmd.split(" "));
+                    spawnCmd = [pbs_config.username + "@" + pbs_config.serverName,"-o","StrictHostKeyChecking=no","-i",pbs_config.secretAccessKey].concat(spawnCmd.split(" "));
                     break;
                 case "local":
                     spawnExec = pbs_config.local_shell;
@@ -36,17 +53,19 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
                     // Build the scp command
                     case "ssh":
                         spawnExec = pbs_config.scp_exec;
+                        var file;
+                        var destDir;
                         switch (spawnDirection){
                             case "send":
-                                var file    = spawnCmd[0];
-                                var destDir = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[1];
+                                file    = spawnCmd[0];
+                                destDir = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[1];
                                 break;
                             case "retrieve":
-                                var file    = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[0];
-                                var destDir = spawnCmd[1];
+                                file    = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[0];
+                                destDir = spawnCmd[1];
                                 break;
                         }
-                        spawnCmd = ["-i",pbs_config.secretAccessKey,file,destDir]
+                        spawnCmd = ["-o","StrictHostKeyChecking=no","-i",pbs_config.secretAccessKey,file,destDir];
                         break;
                     case "local":
                         spawnExec = pbs_config.local_copy;
@@ -71,7 +90,7 @@ function createJobWorkDir(pbs_config){
     var jobWorkingDir = path.join(pbs_config.working_dir,createUID());
     
     //Create workdir
-    var mkdirOutput = spawnProcess("[ -d "+jobWorkingDir+" ] || mkdir "+jobWorkingDir,"shell", null, pbs_config);
+    spawnProcess("[ -d "+jobWorkingDir+" ] || mkdir "+jobWorkingDir,"shell", null, pbs_config);
     
     //TODO:handles error
     return jobWorkingDir;
@@ -82,9 +101,9 @@ function createJobWorkDir(pbs_config){
 function jsonifyQmgr(output){
     var results=[];
     // JSON output will be indexed by queues and server
-    results['queue']=[];
-    results['queues']=[];
-    results['server']={};
+    results.queue=[];
+    results.queues=[];
+    results.server={};
     //Loop on properties
     for (var i = 0; i < output.length; i++) {
         if (output[i].indexOf('=') !== -1){
@@ -96,24 +115,24 @@ function jsonifyQmgr(output){
             //TODO: do this more effentiely
             switch (keys[1].trim()){
                 case 'server':
-                    results['server'][keys[2].trim()] = value;
+                    results.server[keys[2].trim()] = value;
                     break;
                 case 'queue':
                     // Order array under the queue name to easily store properties
-                    results['queue'][keys[2].trim()] = results['queue'][keys[2].trim()] || {}; // initializes array if it is undefined
-                    results['queue'][keys[2].trim()][keys[3].trim()] = value;
+                    results.queue[keys[2].trim()] = results.queue[keys[2].trim()] || {}; // initializes array if it is undefined
+                    results.queue[keys[2].trim()][keys[3].trim()] = value;
                     break;
             }
         }
     }
     // Loop on the sub-array 'queue' to reorganise it more JSON-like
-    for (var x in results['queue']){
+    for (var x in results.queue){
         // Add the name of the queue
-        results['queue'][x]['name'] = x;
-        results['queues'].push(results['queue'][x]);
+        results.queue[x].name = x;
+        results.queues.push(results.queue[x]);
     }
     // Clear the sub-array
-    delete results['queue'];
+    delete results.queue;
     
     return results;
 }
@@ -121,7 +140,7 @@ function jsonifyQmgr(output){
 function jsonifyQnodes(output){
     var results={};
     // Store node name
-    results["name"] = output[0];
+    results.name = output[0];
     // Look for properties
     for (var i = 1; i < output.length; i++) {
         if (output[i].indexOf('=')!== -1){
@@ -132,22 +151,22 @@ function jsonifyQnodes(output){
         }
     }
     // Reorganise jobs into an array with jobId & jobProcs
-    if (results['jobs']){
+    if (results.jobs){
         var runningJobs = [];
-        var jobData = results['jobs'].trim().split(/[,/]+/);
+        var jobData = results.jobs.trim().split(/[,/]+/);
         // Parse jobs and forget trailing comma
         for (var j = 0; j < jobData.length-1; j+=2) {
             var newJob = {
                 jobId       :   jobData[j+1],
                 jobProcs    :   jobData[j],
-            }
+            };
             runningJobs.push(newJob);
         }
-        results['jobs'] = runningJobs;
+        results.jobs = runningJobs;
     }
     // Reorganise status
-    if (results['status']){
-        var statusData = results['status'].trim().split(/[,]+/);
+    if (results.status){
+        var statusData = results.status.trim().split(/[,]+/);
         for (var k = 0; k < statusData.length; k+=2) {
             // Skip jobs inside status for now : TODO: store those information
             if (statusData[k] == 'jobs'){
@@ -157,7 +176,7 @@ function jsonifyQnodes(output){
             }
             results[statusData[k]] = statusData[k+1];
         }
-        delete results['status'];
+        delete results.status;
     }
     return results;
 }
@@ -179,7 +198,7 @@ function jsonifyQstat(output){
 function jsonifyQstatF(output){
     var results={};
     // First line is Job Id
-    results['jobId'] = output[0].split(':')[1].trim();
+    results.jobId = output[0].split(':')[1].trim();
     
     // Look for properties
     for (var i = 1; i < output.length; i++) {
@@ -191,11 +210,11 @@ function jsonifyQstatF(output){
     }
     
     // Reorganise variable list into a sub-array
-    if (results['Variable_List']){
-        var variables = results['Variable_List'].trim().split(/[=,]+/);
-        results['Variable_List'] = {};
+    if (results.Variable_List){
+        var variables = results.Variable_List.trim().split(/[=,]+/);
+        results.Variable_List = {};
         for (var k = 0; k < variables.length; k+=2) {
-            results['Variable_List'][variables[k]] = variables[k+1];
+            results.Variable_List[variables[k]] = variables[k+1];
         }
     }
     return results;
@@ -224,14 +243,14 @@ function jsonifyQstatF(output){
 // TODO: Consider piping the commands to qsub instead of writing script
 function qscript_js(jobArgs, localPath, callback){
     // General PBS command inside script
-    var PBScommand = "#PBS "
+    var PBScommand = "#PBS ";
     var toWrite = "# Autogenerated script";
     
     var jobName = jobArgs.jobName;
     
     // The name has to be bash compatible: TODO expand to throw other erros
     if (jobName.search(/[^a-zA-Z0-9]/g) !== -1){
-        return callback(new Error('Name cannot contain special characters'))
+        return callback(new Error('Name cannot contain special characters'));
     }
 
     // Generate the script path
@@ -266,10 +285,10 @@ function qscript_js(jobArgs, localPath, callback){
         var mailArgs;
         if(jobArgs.mailAbort){mailArgs = '-m a';}
         if(jobArgs.mailBegins){     
-          if (!mailArgs){mailArgs = '-m b'}else{mailArgs += 'b';}
+          if (!mailArgs){mailArgs = '-m b';}else{mailArgs += 'b';}
         }
         if(jobArgs.mailTerminates){     
-          if (!mailArgs){mailArgs = '-m e'}else{mailArgs += 'e';}
+          if (!mailArgs){mailArgs = '-m e';}else{mailArgs += 'e';}
         }
         
         if (mailArgs){
@@ -282,7 +301,7 @@ function qscript_js(jobArgs, localPath, callback){
     
     toWrite += "\n";
     // Write to script
-    fs.writeFileSync(scriptFullPath,toWrite)
+    fs.writeFileSync(scriptFullPath,toWrite);
     
     return callback(null, {
         "message"   :   'Script for job ' + jobName + ' successfully created',
@@ -316,7 +335,7 @@ function qnodes_js(pbs_config, nodeName, callback){
     
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr))
+        return callback(new Error(output.stderr));
     }
     
     //Detect empty values
@@ -325,10 +344,10 @@ function qnodes_js(pbs_config, nodeName, callback){
     output = output.split('\n\n');
     var nodes = [];
     //Loop on each node, the last one is blank due to \n\n
-    for (var i = 0; i < output.length-1; i++) {
+    for (var j = 0; j < output.length-1; j++) {
         //Split at lign breaks
-        output[i]  = output[i].trim().split(/[\n;]+/);
-        nodes.push(jsonifyQnodes(output[i]));
+        output[j]  = output[j].trim().split(/[\n;]+/);
+        nodes.push(jsonifyQnodes(output[j]));
     }
     return callback(null, nodes);
 }
@@ -362,21 +381,21 @@ function qstat_js(pbs_config, jobId, callback){
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr))
+        return callback(new Error(output.stderr));
     }
     
-    // If no error but zero length, the user is not authorized
-    if (output.stdout.length == 0){
-        return callback(new Error('You are not authorized to consult that job'));
+    // If no error but zero length, the user is has no job running or is not authorized
+    if (output.stdout.length === 0){
+        return callback(null,[]);
     }
     
     if (jobList){
         output = output.stdout.split('\n');
         // First 2 lines are not relevant
         var jobs = [];
-        for (var i = 2; i < output.length-1; i++) {
-            output[i]  = output[i].trim().split(/[\s]+/);
-            jobs.push(jsonifyQstat(output[i]));
+        for (var j = 2; j < output.length-1; j++) {
+            output[j]  = output[j].trim().split(/[\s]+/);
+            jobs.push(jsonifyQstat(output[j]));
         }
         return callback(null, jobs);
     }else{
@@ -404,7 +423,7 @@ function qdel_js(pbs_config,jobId,callback){
     var remote_cmd = pbs_config.binaries_dir + "qdel";
     if (args.length !== 1){
         // Return an error
-        return callback(new Error('Please specify the jobId'))
+        return callback(new Error('Please specify the jobId'));
     }else{
         jobId = args.pop();
         // Default print everything
@@ -414,7 +433,7 @@ function qdel_js(pbs_config,jobId,callback){
     
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr))
+        return callback(new Error(output.stderr));
     }
     // Job deleted returns
     return callback(null, {"message" : 'Job ' + jobId + ' successfully deleted'});
@@ -436,7 +455,7 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
     callback = args.pop();
     
     var remote_cmd = pbs_config.binaries_dir + "qmgr -c ";
-    if (args.length == 0){
+    if (args.length === 0){
         // Default print everything
         remote_cmd += "'p s'";
     }else{
@@ -447,7 +466,7 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
     
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr))
+        return callback(new Error(output.stderr));
     }
     
     output = output.stdout.split('\n');
@@ -515,11 +534,11 @@ function qfind_js(pbs_config, jobId, callback){
     // Check if the user is the owner of the job
     qstat_js(pbs_config,jobId, function(err,data){
         if(err){
-            return callback(err,data)
+            return callback(err,data);
         }
         
         // Check if the user downloads the appropriate files
-        var jobWorkingDir = path.resolve(data["Variable_List"]["PBS_O_WORKDIR"]);
+        var jobWorkingDir = path.resolve(data.Variable_List.PBS_O_WORKDIR);
         
         // Remote find command
         // TOOD: put in config file
@@ -556,7 +575,7 @@ function qfind_js(pbs_config, jobId, callback){
         }
         return callback(null, fileList);
         
-    })
+    });
 
 }
 
@@ -565,11 +584,11 @@ function qretrieve_js(pbs_config, jobId, fileList, localDir, callback){
     // Check if the user is the owner of the job
     qstat_js(pbs_config,jobId, function(err,data){
         if(err){
-            return callback(err,data)
+            return callback(err,data);
         }
         
         // Check if the user downloads the appropriate files
-        var jobWorkingDir = path.resolve(data["Variable_List"]["PBS_O_WORKDIR"]);
+        var jobWorkingDir = path.resolve(data.Variable_List.PBS_O_WORKDIR);
         
         for (var file in fileList){
             var filePath = fileList[file];
@@ -589,13 +608,10 @@ function qretrieve_js(pbs_config, jobId, fileList, localDir, callback){
         return callback(null,{
             "message"   : 'Files for the job ' + jobId + ' have all been retrieved in ' + localDir
         });
-        
-    })
+    });
 
 }
 
-
-    
 module.exports = {
     qnodes_js           : qnodes_js,
     qstat_js            : qstat_js,
