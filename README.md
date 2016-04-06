@@ -8,16 +8,46 @@ It uses SSH to remotly connect to the PBS/Torque headnode and return information
 ## Basic usage
 Edit `./config/pbsserver.json"` with your information
 ```
+var pbs_config = {
+        "method"                : "ssh",
+        "ssh_exec"              : "/usr/bin/ssh",
+        "username"              : "root",
+        "serverName"            : "pbsserver",
+        "secretAccessKey"       : "/root/.ssh/id_rsa",
+        "local_shell"           : "/bin/sh",
+        "binaries_dir"          : "/usr/local/bin/"
+};
 var pbsjs = require("./pbsjs.js")
 
+// Generate a submission script with the parameters in jobArgs and save it inside localJobDir
+pbsjs.qscript_js(jobArgs, localJobDir, callback(err,data))
+
+// Submit a job with the following submissionScript and send the jobFiles along
+pbsjs.qsub_js(pbs_config, [submissionScript, jobFiles, ..], callback(err,data))
+
 // Gather server information
-var server_info = pbsjs.qmgr_js();
-// Gather nodes information
-var nodes_info = pbsjs.qnodes_js();
+pbsjs.qmgr_js(pbs_config, callback);
+
+// Gather node list
+pbsjs.qnodes_js(pbs_config, callback(err,data));
+
+// Gather node info
+pbsjs.qnodes_js(pbs_config, nodeName, callback(err,data));
+
 // Gather job list
-var jobs_info = pbsjs.qstat_js();
+pbsjs.qstat_js(pbs_config, callback(err,data));
+
+// Gather job information
+pbsjs.qstat_js(pbs_config, jobId, callback(err,data));
+
+// List files in working directory
+pbsjs.qfind_js(pbs_config, jobId, callback(err,data));
+
+// Download files from a working directory to the localJobDir
+pbsjs.qretrieve_js(pbs_config, jobId, [jobFiles,..] , localJobDir, callback(err,data))
+
 // Cancel a job
-pbsjs.qdel_js(jobId);
+pbsjs.qdel_js(pbs_config, jobId, callback(err,data))
 ```
 
 ### Output exemples
@@ -32,23 +62,7 @@ pbsjs.qdel_js(jobId);
   server: { scheduling: 'True',
     acl_hosts: 'pbsserver',
     managers: 'root@pbsserver',
-    operators: 'root@pbsserver',
-    default_queue: 'batch',
-    log_events: '2047',
-    mail_from: 'adm',
-    scheduler_iteration: '600',
-    node_check_rate: '150',
-    tcp_timeout: '300',
-    job_stat_rate: '300',
-    poll_jobs: 'True',
-    down_on_error: 'True',
-    mom_job_sync: 'True',
-    keep_completed: '300',
-    next_job_number: '34',
-    moab_array_compatible: 'True',
-    nppcu: '1',
-    timeout_for_job_delete: '120',
-    timeout_for_job_requeue: '120' } ]
+    ...} ]
 ```
 
 >qnodes_js:
@@ -60,24 +74,9 @@ pbsjs.qdel_js(jobId);
     np: '1',
     ntype: 'cluster',
     status: 'rectime',
-    macaddr: '00:00:00:00:00:00',
-    cpuclock: 'Fixed',
-    varattr: '',
-    jobs: '',
-    netload: '123456',
-    gres: '',
-    loadave: '0.07',
-    ncpus: '4',
-    physmem: '10000000kb',
-    availmem: '10000000kb',
-    totmem: '10000000kb',
-    idletime: '100',
-    nusers: '0',
-    nsessions: '0',
+    ...
     uname: 'Linux server_name 1.1.1-001.x86_64 #1 SMP Tue Jan 01 00:00:00 UTC 2016 x86_64',
-    opsys: 'linux',
-    mom_service_port: '15002',
-    mom_manager_port: '15003' 
+    opsys: 'linux'
     },
     {
     name: 'node2',
@@ -106,14 +105,6 @@ pbsjs.qdel_js(jobId);
     user: 'user',
     time: '0',
     status: 'Running',
-    queue: 'batch' 
-    },
-    {
-    jobId: '3.pbsserver',
-    name: 'testJob2',
-    user: 'user',
-    time: '0',
-    status: 'Queued',
     queue: 'batch' 
     }]
 ```
