@@ -26,43 +26,43 @@ var pbs_config = {
 
 var pbsjs = require("./pbsjs.js")
 ```
-** Generate a submission script with the parameters in jobArgs and save it inside localJobDir**
+**Generate a submission script with the parameters in jobArgs and save it inside localJobDir**
 ```
 pbsjs.qscript_js(jobArgs, localJobDir, callback(err,data))
 ```
-** Submit a job with the following submissionScript and send the jobFiles along**
+**Submit a job with the following submissionScript and send the jobFiles along**
 ```
 pbsjs.qsub_js(pbs_config, [submissionScript, jobFiles, ..], callback(err,data))
 ```
-** Gather server information**
+**Gather server information**
 ```
 pbsjs.qmgr_js(pbs_config, callback);
 ```
-** Gather node list**
+**Gather node list**
 ```
 pbsjs.qnodes_js(pbs_config, callback(err,data));
 ```
-** Gather node info**
+**Gather node info**
 ```
 pbsjs.qnodes_js(pbs_config, nodeName, callback(err,data));
 ```
-** Gather job list**
+**Gather job list**
 ```
 pbsjs.qstat_js(pbs_config, callback(err,data));
 ```
-** Gather job information**
+**Gather job information**
 ```
 pbsjs.qstat_js(pbs_config, jobId, callback(err,data));
 ```
-** List files in working directory**
+**List files in working directory**
 ```
 pbsjs.qfind_js(pbs_config, jobId, callback(err,data));
 ```
-** Download files from a working directory to the localJobDir**
+**Download files from a working directory to the localJobDir**
 ```
 pbsjs.qretrieve_js(pbs_config, jobId, [jobFiles,..] , localJobDir, callback(err,data))
 ```
-** Cancel a job**
+**Cancel a job**
 ```
 pbsjs.qdel_js(pbs_config, jobId, callback(err,data))
 ```
