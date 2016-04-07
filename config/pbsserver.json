@@ -1,9 +1,13 @@
 {
         "method"                : "ssh",
         "ssh_exec"              : "/usr/bin/ssh",
-        "username"              : "root",
+        "scp_exec"              : "/usr/bin/scp",
+        "username"              : "user",
         "serverName"            : "pbsserver",
-        "secretAccessKey"       : "/root/.ssh/id_rsa",
+        "secretAccessKey"       : "/home/user/.ssh/id_rsa",
         "local_shell"           : "/bin/sh",
-        "binaries_dir"          : "/usr/local/bin/"
-}
+        "local_copy"            : "/bin/cp",
+        "binaries_dir"          : "/usr/local/bin/",
+        "useSharedDir"          : false,
+        "working_dir"           : "/tmp"
+};

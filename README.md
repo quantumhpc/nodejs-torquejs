@@ -13,12 +13,17 @@ Edit `./config/pbsserver.json"` with your information
 var pbs_config = {
         "method"                : "ssh",
         "ssh_exec"              : "/usr/bin/ssh",
-        "username"              : "root",
+        "scp_exec"              : "/usr/bin/scp",
+        "username"              : "user",
         "serverName"            : "pbsserver",
-        "secretAccessKey"       : "/root/.ssh/id_rsa",
+        "secretAccessKey"       : "/home/user/.ssh/id_rsa",
         "local_shell"           : "/bin/sh",
-        "binaries_dir"          : "/usr/local/bin/"
+        "local_copy"            : "/bin/cp",
+        "binaries_dir"          : "/usr/local/bin/",
+        "useSharedDir"          : false,
+        "working_dir"           : "/tmp"
 };
+
 var pbsjs = require("./pbsjs.js")
 ```
 ** Generate a submission script with the parameters in jobArgs and save it inside localJobDir**
