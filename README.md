@@ -5,6 +5,8 @@ Nodejs module to interact with a PBS/Torque Server
 For now only basic function are implemented: **qmgr -c 'p s'**, **qstat**, **qdel(jobId)**, **qnodes** and **qnodes(nodename)**.
 It uses SSH to remotly connect to the PBS/Torque headnode and return information as a JSON array.
 
+Submit job remotly to a PBS/Torque server from a nodejs application and retrieve files from a working directory.
+
 ## Basic usage
 Edit `./config/pbsserver.json"` with your information
 ```
@@ -18,35 +20,45 @@ var pbs_config = {
         "binaries_dir"          : "/usr/local/bin/"
 };
 var pbsjs = require("./pbsjs.js")
-
-// Generate a submission script with the parameters in jobArgs and save it inside localJobDir
+```
+** Generate a submission script with the parameters in jobArgs and save it inside localJobDir**
+```
 pbsjs.qscript_js(jobArgs, localJobDir, callback(err,data))
-
-// Submit a job with the following submissionScript and send the jobFiles along
+```
+** Submit a job with the following submissionScript and send the jobFiles along**
+```
 pbsjs.qsub_js(pbs_config, [submissionScript, jobFiles, ..], callback(err,data))
-
-// Gather server information
+```
+** Gather server information**
+```
 pbsjs.qmgr_js(pbs_config, callback);
-
-// Gather node list
+```
+** Gather node list**
+```
 pbsjs.qnodes_js(pbs_config, callback(err,data));
-
-// Gather node info
+```
+** Gather node info**
+```
 pbsjs.qnodes_js(pbs_config, nodeName, callback(err,data));
-
-// Gather job list
+```
+** Gather job list**
+```
 pbsjs.qstat_js(pbs_config, callback(err,data));
-
-// Gather job information
+```
+** Gather job information**
+```
 pbsjs.qstat_js(pbs_config, jobId, callback(err,data));
-
-// List files in working directory
+```
+** List files in working directory**
+```
 pbsjs.qfind_js(pbs_config, jobId, callback(err,data));
-
-// Download files from a working directory to the localJobDir
+```
+** Download files from a working directory to the localJobDir**
+```
 pbsjs.qretrieve_js(pbs_config, jobId, [jobFiles,..] , localJobDir, callback(err,data))
-
-// Cancel a job
+```
+** Cancel a job**
+```
 pbsjs.qdel_js(pbs_config, jobId, callback(err,data))
 ```
 
@@ -108,3 +120,32 @@ pbsjs.qdel_js(pbs_config, jobId, callback(err,data))
     queue: 'batch' 
     }]
 ```
+
+>qqueues_js:
+```
+[ { name: 'batch',
+    maxJobs: '0',
+    totalJobs: '2',
+    enabled: true,
+    started: true,
+    queued: '2',
+    running: '0',
+    held: '0',
+    waiting: '0',
+    moving: '0',
+    exiting: '0',
+    type: 'Execution',
+    completed: '0' },
+  { name: 'interactive',
+    maxJobs: '0',
+    totalJobs: '0',
+    enabled: true,
+    started: true,
+    queued: '0',
+    running: '0',
+    held: '0',
+    waiting: '0',
+    moving: '0',
+    exiting: '0',
+    type: 'Execution',
+    completed: '0' } ]

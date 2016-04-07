@@ -19,6 +19,7 @@ var cproc = require('child_process');
 var spawn = cproc.spawnSync;
 var fs = require("fs");
 var path = require("path");
+var jobStatus = {'Q' : 'Queued', 'R' : 'Running', 'C' : 'Completed', 'E' : 'Exiting', 'H' : 'Held', 'T' : 'Moving', 'W' : 'Waiting'};
 
 // Parse the command and return stdout of the process depending on the method
 /*
@@ -182,15 +183,32 @@ function jsonifyQnodes(output){
 }
 
 function jsonifyQstat(output){
-    var results={};
-    var status = {'Q' : 'Queued', 'R' : 'Running', 'C' : 'Completed', 'E' : 'Error'};
-    results = {
+    var results = {
         "jobId"     :   output[0],
         "name"      :   output[1],
         "user"      :   output[2],
         "time"      :   output[3],
-        "status"    :   status[output[4]],
+        "status"    :   jobStatus[output[4]],
         "queue"     :   output[5],
+    };
+    return results;
+}
+
+function jsonifyQueues(output){
+    var results = {
+        "name"        :   output[0],
+        "maxJobs"     :   output[1],
+        "totalJobs"   :   output[2],
+        "enabled"     :   (output[3] === 'yes' ? true : false),
+        "started"     :   (output[4] === 'yes' ? true : false),
+        "queued"      :   output[5],
+        "running"     :   output[6],
+        "held"        :   output[7],
+        "waiting"     :   output[8],
+        "moving"      :   output[9],
+        "exiting"     :   output[10],
+        "type"        :   (output[11] === 'E' ? 'Execution' : 'Routing'),
+        "completed"   :   output[12]
     };
     return results;
 }
@@ -352,6 +370,46 @@ function qnodes_js(pbs_config, nodeName, callback){
     return callback(null, nodes);
 }
 
+// Return list of queues
+function qqueues_js(pbs_config, queueName, callback){
+    // JobId is optionnal so we test on the number of args
+    var args = [];
+    
+    for (var i = 0; i < arguments.length; i++) {
+        args.push(arguments[i]);
+    }
+    
+    // first argument is the config file
+    pbs_config = args.shift();
+
+    // last argument is the callback function
+    callback = args.pop();
+    
+    var remote_cmd = pbs_config.binaries_dir + "qstat -Q ";
+    
+        // Info on a specific job
+    if (args.length == 1){
+        queueName = args.pop();
+        remote_cmd += queueName;
+    }
+    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    
+    // Transmit the error if any
+    if (output.stderr){
+        return callback(new Error(output.stderr));
+    }
+    
+    output = output.stdout.split('\n');
+    // First 2 lines are not relevant
+    var queues = [];
+    for (var j = 2; j < output.length-1; j++) {
+        output[j]  = output[j].trim().split(/[\s]+/);
+        queues.push(jsonifyQueues(output[j]));
+    }
+    return callback(null, queues);
+    
+}
+    
 // Return list of running jobs
 // TODO: implement qstat -f
 function qstat_js(pbs_config, jobId, callback){
@@ -615,6 +673,7 @@ function qretrieve_js(pbs_config, jobId, fileList, localDir, callback){
 module.exports = {
     qnodes_js           : qnodes_js,
     qstat_js            : qstat_js,
+    qqueues_js          : qqueues_js,
     qmgr_js             : qmgr_js,
     qdel_js             : qdel_js,
     qsub_js             : qsub_js,
