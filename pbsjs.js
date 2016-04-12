@@ -20,7 +20,20 @@ var spawn = cproc.spawnSync;
 var fs = require("fs");
 var path = require("path");
 var jobStatus = {'Q' : 'Queued', 'R' : 'Running', 'C' : 'Completed', 'E' : 'Exiting', 'H' : 'Held', 'T' : 'Moving', 'W' : 'Waiting'};
-
+// General command dictionnary keeping track of implemented features
+var cmdDict = {
+    "queue"    :   "qstat -Q ",
+    "queues"   :   "qstat -Q",
+    "job"      :   "qstat -f ",
+    "jobs"     :   "qstat",
+    "node"     :   "qnodes ",
+    "nodes"    :   "qnodes",
+    "submit"   :   "qsub ",
+    "delete"   :   "qdel ",
+    "setting"  :   "qmgr -c ",
+    "settings" :   "qmgr -c 'p s'"
+    };
+    
 // Parse the command and return stdout of the process depending on the method
 /*
     spawnCmd                :   shell command   /   [file, destinationDir], 
@@ -341,12 +354,14 @@ function qnodes_js(pbs_config, nodeName, callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir + "qnodes";
+    var remote_cmd = pbs_config.binaries_dir;
     
     // Info on a specific node
     if (args.length == 1){
         nodeName = args.pop();
-        remote_cmd += " " + nodeName;
+        remote_cmd += cmdDict.node + nodeName;
+    }else{
+        remote_cmd += cmdDict.nodes;
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
@@ -385,12 +400,14 @@ function qqueues_js(pbs_config, queueName, callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir + "qstat -Q ";
+    var remote_cmd = pbs_config.binaries_dir;
     
         // Info on a specific job
     if (args.length == 1){
         queueName = args.pop();
-        remote_cmd += queueName;
+        remote_cmd += cmdDict.queue + queueName;
+    }else{
+        remote_cmd += cmdDict.queues;
     }
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     
@@ -428,14 +445,17 @@ function qstat_js(pbs_config, jobId, callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir + "qstat";
+    var remote_cmd = pbs_config.binaries_dir;
     
     // Info on a specific job
     if (args.length == 1){
         jobId = args.pop();
-        remote_cmd += " -f " + jobId;
+        remote_cmd += cmdDict.job + jobId;
         jobList = false;
+    }else{
+        remote_cmd += cmdDict.jobs;
     }
+    
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     // Transmit the error if any
     if (output.stderr){
@@ -478,15 +498,15 @@ function qdel_js(pbs_config,jobId,callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir + "qdel";
     if (args.length !== 1){
         // Return an error
         return callback(new Error('Please specify the jobId'));
     }else{
         jobId = args.pop();
         // Default print everything
-        remote_cmd += " " + jobId;
+        var remote_cmd = pbs_config.binaries_dir + cmdDict.delete + jobId;
     }
+    
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     
     // Transmit the error if any
@@ -512,13 +532,14 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir + "qmgr -c ";
+    var remote_cmd = pbs_config.binaries_dir;
     if (args.length === 0){
         // Default print everything
-        remote_cmd += "'p s'";
+        remote_cmd += cmdDict.settings;
     }else{
         // TODO : handles complex qmgr commands
-        remote_cmd += args.pop();
+        remote_cmd += cmdDict.setting + args.pop();
+        return callback(new Error('not yet implemented'));
     }
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     
@@ -543,7 +564,7 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
 */
 
 function qsub_js(pbs_config, qsubArgs, callback){
-    var remote_cmd = pbs_config.binaries_dir + "qsub";
+    var remote_cmd = pbs_config.binaries_dir + cmdDict.submit;
     if(qsubArgs.length < 1) {
         return { "code" : 1, "message" : 'Please submit the script to run'};  
     }
@@ -561,7 +582,7 @@ function qsub_js(pbs_config, qsubArgs, callback){
     }
     // Add script
     var scriptName = path.basename(qsubArgs[0]);
-    remote_cmd += " " + path.join(jobWorkingDir,scriptName);
+    remote_cmd += path.join(jobWorkingDir,scriptName);
     
     // Add directory to submission args
     remote_cmd += " -d " + jobWorkingDir;

@@ -1,5 +1,5 @@
 # nodejs-pbsjs
-Nodejs module to interact with a PBS/Torque Server
+Nodejs interface for OpenPBS/Torque Server
 
 ## Introduction
 For now only basic function are implemented: **qmgr -c 'p s'**, **qstat**, **qdel(jobId)**, **qnodes** and **qnodes(nodename)**.
