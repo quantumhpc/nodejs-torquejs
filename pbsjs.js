@@ -22,18 +22,22 @@ var path = require("path");
 var jobStatus = {'Q' : 'Queued', 'R' : 'Running', 'C' : 'Completed', 'E' : 'Exiting', 'H' : 'Held', 'T' : 'Moving', 'W' : 'Waiting'};
 // General command dictionnary keeping track of implemented features
 var cmdDict = {
-    "queue"    :   "qstat -Q ",
-    "queues"   :   "qstat -Q",
-    "job"      :   "qstat -f ",
-    "jobs"     :   "qstat",
-    "node"     :   "qnodes ",
-    "nodes"    :   "qnodes",
-    "submit"   :   "qsub ",
-    "delete"   :   "qdel ",
-    "setting"  :   "qmgr -c ",
-    "settings" :   "qmgr -c 'p s'"
+    "queue"    :   ["qstat", "-Q"],
+    "queues"   :   ["qstat", "-Q"],
+    "job"      :   ["qstat", "-f"],
+    "jobs"     :   ["qstat"],
+    "node"     :   ["qnodes"],
+    "nodes"    :   ["qnodes"],
+    "submit"   :   ["qsub"],
+    "delete"   :   ["qdel"],
+    "setting"  :   ["qmgr", "-c"],
+    "settings" :   ["qmgr", "-c","'p s'"]
     };
-    
+
+// Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
+function cmdBuilder(binPath, cmdDictElement){
+    return [path.join(binPath, cmdDictElement[0])].concat(cmdDictElement.slice(1,cmdDictElement.length));
+}
 // Parse the command and return stdout of the process depending on the method
 /*
     spawnCmd                :   shell command   /   [file, destinationDir], 
@@ -44,16 +48,17 @@ var cmdDict = {
 // TODO: treat errors
 function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
     var spawnExec;
+    var spawnOpts = { encoding : 'utf8'};
     switch (spawnType){
         case "shell":
             switch (pbs_config.method){
                 case "ssh":
                     spawnExec = pbs_config.ssh_exec;
-                    spawnCmd = [pbs_config.username + "@" + pbs_config.serverName,"-o","StrictHostKeyChecking=no","-i",pbs_config.secretAccessKey].concat(spawnCmd.split(" "));
+                    spawnCmd = [pbs_config.username + "@" + pbs_config.serverName,"-o","StrictHostKeyChecking=no","-i",pbs_config.secretAccessKey].concat(spawnCmd);
                     break;
                 case "local":
-                    spawnCmd = spawnCmd.split(" ");
                     spawnExec = spawnCmd.shift();
+                    spawnOpts.shell = pbs_config.local_shell;
                     break; 
             }
             break;
@@ -88,7 +93,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
             }
             break;
     }
-    return spawn(spawnExec, spawnCmd, { encoding : 'utf8' });
+    return spawn(spawnExec, spawnCmd, spawnOpts);
 }
 
 function createUID()
@@ -104,7 +109,7 @@ function createJobWorkDir(pbs_config){
     var jobWorkingDir = path.join(pbs_config.working_dir,createUID());
     
     //Create workdir
-    spawnProcess("[ -d "+jobWorkingDir+" ] || mkdir "+jobWorkingDir,"shell", null, pbs_config);
+    spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir "+jobWorkingDir],"shell", null, pbs_config);
     
     //TODO:handles error
     return jobWorkingDir;
@@ -357,14 +362,15 @@ function qnodes_js(pbs_config, nodeName, callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir;
-    
+    var remote_cmd;
+
     // Info on a specific node
     if (args.length == 1){
         nodeName = args.pop();
-        remote_cmd += cmdDict.node + nodeName;
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.node);
+        remote_cmd.push(nodeName);
     }else{
-        remote_cmd += cmdDict.nodes;
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.nodes);
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
@@ -405,15 +411,17 @@ function qqueues_js(pbs_config, queueName, callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir;
+    var remote_cmd;
     
     // Info on a specific job
     if (args.length == 1){
         queueName = args.pop();
-        remote_cmd += cmdDict.queue + queueName;
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.queue);
+        remote_cmd.push(queueName);
     }else{
-        remote_cmd += cmdDict.queues;
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.queues);
     }
+    
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
     
     // Transmit the error if any
@@ -450,15 +458,16 @@ function qstat_js(pbs_config, jobId, callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir;
+    var remote_cmd;
     
     // Info on a specific job
     if (args.length == 1){
         jobId = args.pop();
-        remote_cmd += cmdDict.job + jobId;
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.job);
+        remote_cmd.push(jobId);
         jobList = false;
     }else{
-        remote_cmd += cmdDict.jobs;
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.jobs);
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
@@ -503,14 +512,14 @@ function qdel_js(pbs_config,jobId,callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir + cmdDict.delete;
+    var remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.delete);
     
     if (args.length !== 1){
         // Return an error
         return callback(new Error('Please specify the jobId'));
     }else{
         jobId = args.pop();
-        remote_cmd += jobId;
+        remote_cmd.push(jobId);
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
@@ -541,10 +550,11 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
     var remote_cmd = pbs_config.binaries_dir;
     if (args.length === 0){
         // Default print everything
-        remote_cmd += cmdDict.settings;
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.settings);
     }else{
         // TODO : handles complex qmgr commands
-        remote_cmd += cmdDict.setting + args.pop();
+        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.setting);
+        remote_cmd.push(args.pop());
         return callback(new Error('not yet implemented'));
     }
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
@@ -570,7 +580,8 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
 */
 
 function qsub_js(pbs_config, qsubArgs, callback){
-    var remote_cmd = pbs_config.binaries_dir + cmdDict.submit;
+    var remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.submit);
+    
     if(qsubArgs.length < 1) {
         return { "code" : 1, "message" : 'Please submit the script to run'};  
     }
@@ -588,10 +599,10 @@ function qsub_js(pbs_config, qsubArgs, callback){
     }
     // Add script
     var scriptName = path.basename(qsubArgs[0]);
-    remote_cmd += path.join(jobWorkingDir,scriptName);
+    remote_cmd.push(path.join(jobWorkingDir,scriptName));
     
     // Add directory to submission args
-    remote_cmd += " -d " + jobWorkingDir;
+    remote_cmd.push("-d",jobWorkingDir);
     
     // Submit
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
@@ -627,8 +638,7 @@ function qfind_js(pbs_config, jobId, callback){
         
         // Remote find command
         // TOOD: put in config file
-        var remote_cmd = "find " + jobWorkingDir + " -type f";
-        remote_cmd += "&& find " + jobWorkingDir + " -type d";
+        var remote_cmd = ["find", jobWorkingDir,"-type f", "&& find", jobWorkingDir, "-type d"];
         
         // List the content of the working dir
         var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
