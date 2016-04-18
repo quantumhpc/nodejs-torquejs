@@ -49,13 +49,10 @@ function cmdBuilder(binPath, cmdDictElement){
 function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
     var spawnExec;
     // UID and GID throw a core dump if not correct numbers
-    var uid = parseInt(pbs_config.uid,10);
-    var gid = parseInt(pbs_config.gid,10);
-    
-    if ( Number.isNaN(uid) || Number.isNaN(gid) ) {
+    if ( Number.isNaN(pbs_config.uid) || Number.isNaN(pbs_config.gid) ) {
         return {stderr : "Please specify valid uid/gid"};
     }  
-    var spawnOpts = { encoding : 'utf8', uid : uid , gid : gid};
+    var spawnOpts = { encoding : 'utf8', uid : pbs_config.uid , gid : pbs_config.gid};
     switch (spawnType){
         case "shell":
             switch (pbs_config.method){
