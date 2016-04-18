@@ -48,7 +48,14 @@ function cmdBuilder(binPath, cmdDictElement){
 // TODO: treat errors
 function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
     var spawnExec;
-    var spawnOpts = { encoding : 'utf8', uid : parseInt(pbs_config.uid,10) , gid : parseInt(pbs_config.gid, 10)};
+    // UID and GID throw a core dump if not correct numbers
+    var uid = parseInt(pbs_config.uid,10);
+    var gid = parseInt(pbs_config.gid,10);
+    
+    if ( Number.isNaN(uid) || Number.isNaN(gid) ) {
+        return {stderr : "Please specify valid uid/gid"};
+    }  
+    var spawnOpts = { encoding : 'utf8', uid : uid , gid : gid};
     switch (spawnType){
         case "shell":
             switch (pbs_config.method){
@@ -58,7 +65,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
                     break;
                 case "local":
                     spawnExec = spawnCmd.shift();
-                    spawnOpts.shell = "su " + pbs_config.username + " -s " + pbs_config.local_shell;
+                    spawnOpts.shell = pbs_config.local_shell;
                     break; 
             }
             break;
@@ -473,6 +480,7 @@ function qstat_js(pbs_config, jobId, callback){
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr));
