@@ -71,7 +71,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
             // Special case if we can use a shared file system
             if (pbs_config.useSharedDir){
                 spawnExec = pbs_config.local_copy;
-                spawnOpts.shell = "su " + pbs_config.username + " -s " + pbs_config.local_shell;
+                spawnOpts.shell = pbs_config.local_shell;
             }else{
                 switch (pbs_config.method){
                     // Build the scp command
@@ -93,7 +93,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
                         break;
                     case "local":
                         spawnExec = pbs_config.local_copy;
-                        spawnOpts.shell = "su " + pbs_config.username + " -s " + pbs_config.local_shell;
+                        spawnOpts.shell = pbs_config.local_shell;
                         break;
                 }
             }
