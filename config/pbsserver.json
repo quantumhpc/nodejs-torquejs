@@ -3,6 +3,8 @@
         "ssh_exec"              : "/usr/bin/ssh",
         "scp_exec"              : "/usr/bin/scp",
         "username"              : "user",
+        "uid"                   : "10000",
+        "gid"                   : "10000"
         "serverName"            : "pbsserver",
         "secretAccessKey"       : "/home/user/.ssh/id_rsa",
         "local_shell"           : "/bin/sh",
