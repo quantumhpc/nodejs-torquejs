@@ -48,7 +48,7 @@ function cmdBuilder(binPath, cmdDictElement){
 // TODO: treat errors
 function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
     var spawnExec;
-    var spawnOpts = { encoding : 'utf8'};
+    var spawnOpts = { encoding : 'utf8', uid : parseInt(pbs_config.uid,10) , gid : parseInt(pbs_config.gid, 10)};
     switch (spawnType){
         case "shell":
             switch (pbs_config.method){
