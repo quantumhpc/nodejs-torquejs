@@ -52,8 +52,8 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
                     spawnCmd = [pbs_config.username + "@" + pbs_config.serverName,"-o","StrictHostKeyChecking=no","-i",pbs_config.secretAccessKey].concat(spawnCmd.split(" "));
                     break;
                 case "local":
-                    spawnExec = pbs_config.local_shell;
                     spawnCmd = spawnCmd.split(" ");
+                    spawnExec = spawnCmd.shift();
                     break; 
             }
             break;
@@ -240,6 +240,9 @@ function jsonifyQstatF(output){
         }
     }
     
+    // Develop job status to be consistent
+    results.job_state = jobStatus[results.job_state];
+    
     // Reorganise variable list into a sub-array
     if (results.Variable_List){
         var variables = results.Variable_List.trim().split(/[=,]+/);
@@ -376,11 +379,13 @@ function qnodes_js(pbs_config, nodeName, callback){
     //Separate each node
     output = output.split('\n\n');
     var nodes = [];
-    //Loop on each node, the last one is blank due to \n\n
-    for (var j = 0; j < output.length-1; j++) {
-        //Split at lign breaks
-        output[j]  = output[j].trim().split(/[\n;]+/);
-        nodes.push(jsonifyQnodes(output[j]));
+    //Loop on each node
+    for (var j = 0; j < output.length; j++) {
+        if (output[j].length>1){
+            //Split at lign breaks
+            output[j]  = output[j].trim().split(/[\n;]+/);
+            nodes.push(jsonifyQnodes(output[j]));
+        }
     }
     return callback(null, nodes);
 }
@@ -402,7 +407,7 @@ function qqueues_js(pbs_config, queueName, callback){
     
     var remote_cmd = pbs_config.binaries_dir;
     
-        // Info on a specific job
+    // Info on a specific job
     if (args.length == 1){
         queueName = args.pop();
         remote_cmd += cmdDict.queue + queueName;
@@ -498,13 +503,14 @@ function qdel_js(pbs_config,jobId,callback){
     // last argument is the callback function
     callback = args.pop();
     
+    var remote_cmd = pbs_config.binaries_dir + cmdDict.delete;
+    
     if (args.length !== 1){
         // Return an error
         return callback(new Error('Please specify the jobId'));
     }else{
         jobId = args.pop();
-        // Default print everything
-        var remote_cmd = pbs_config.binaries_dir + cmdDict.delete + jobId;
+        remote_cmd += jobId;
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
