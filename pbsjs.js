@@ -34,6 +34,12 @@ var cmdDict = {
     "settings" :   ["qmgr", "-c","'p s'"]
     };
 
+var nodeControlCmd = {
+    'clear'     :  "-c",
+    'offline'   :  "-o",
+    'reset'     :  "-r"
+};
+
 // Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
 function cmdBuilder(binPath, cmdDictElement){
     return [path.join(binPath, cmdDictElement[0])].concat(cmdDictElement.slice(1,cmdDictElement.length));
@@ -114,8 +120,8 @@ function createJobWorkDir(pbs_config){
     // Get configuration working directory and Generate a UID for the working dir
     var jobWorkingDir = path.join(pbs_config.working_dir,createUID());
     
-    //Create workdir
-    spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir "+jobWorkingDir],"shell", null, pbs_config);
+    //Create workdir with 700 permissions
+    spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir -m 700 "+jobWorkingDir],"shell", null, pbs_config);
     
     //TODO:handles error
     return jobWorkingDir;
@@ -199,7 +205,8 @@ function jsonifyQnodes(output){
                     k++;
                 }
             }
-            results[statusData[k]] = statusData[k+1];
+            // Insert prefix for status
+            results['status_' + statusData[k]] = statusData[k+1];
         }
         delete results.status;
     }
@@ -310,8 +317,10 @@ function qscript_js(jobArgs, localPath, callback){
     // Ressources
     toWrite += "\n" + PBScommand + "-l " + jobArgs.ressources;
     
-    // Walltime
-    toWrite += "\n" + PBScommand + "-l " + jobArgs.walltime;
+    // Walltime: optional
+    if (jobArgs.walltime !== undefined && jobArgs.walltime !== ''){
+        toWrite += "\n" + PBScommand + "-l " + jobArgs.walltime;
+    }
     
     // Queue
     toWrite += "\n" +  PBScommand + "-q " + jobArgs.queue;
@@ -355,7 +364,7 @@ function qscript_js(jobArgs, localPath, callback){
 }
 
 // Return the list of nodes
-function qnodes_js(pbs_config, nodeName, callback){
+function qnodes_js(pbs_config, controlCmd, nodeName, callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
@@ -369,37 +378,56 @@ function qnodes_js(pbs_config, nodeName, callback){
     callback = args.pop();
     
     var remote_cmd;
-
-    // Info on a specific node
-    if (args.length == 1){
-        nodeName = args.pop();
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.node);
-        remote_cmd.push(nodeName);
-    }else{
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.nodes);
+    var parseOutput = true;
+    
+    // Command, Nodename or default
+    switch (args.length){
+        case 2:
+            // Node control
+            nodeName = args.pop();
+            controlCmd = args.pop();
+            remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.node);
+            remote_cmd.push(nodeControlCmd[controlCmd]);
+            remote_cmd.push(nodeName);
+            parseOutput = false;
+            break;
+        case 1:
+            // Node specific info
+            nodeName = args.pop();
+            remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.node);
+            remote_cmd.push(nodeName);
+            break;
+        default:
+            // Default
+            remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.nodes);
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
-    
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr));
     }
     
-    //Detect empty values
-    output = output.stdout.replace(/=,/g,"=null,");
-    //Separate each node
-    output = output.split('\n\n');
-    var nodes = [];
-    //Loop on each node
-    for (var j = 0; j < output.length; j++) {
-        if (output[j].length>1){
-            //Split at lign breaks
-            output[j]  = output[j].trim().split(/[\n;]+/);
-            nodes.push(jsonifyQnodes(output[j]));
+    if (parseOutput){    
+        //Detect empty values
+        output = output.stdout.replace(/=,/g,"=null,");
+        //Separate each node
+        output = output.split('\n\n');
+        var nodes = [];
+        //Loop on each node
+        for (var j = 0; j < output.length; j++) {
+            if (output[j].length>1){
+                //Split at lign breaks
+                output[j]  = output[j].trim().split(/[\n;]+/);
+                nodes.push(jsonifyQnodes(output[j]));
+            }
         }
+        return callback(null, nodes);
+    }else{
+        return callback(null, { 
+            "message"   : 'Node ' + nodeName + ' put in ' + controlCmd + ' state.',
+        });
     }
-    return callback(null, nodes);
 }
 
 // Return list of queues
