@@ -27,7 +27,7 @@ var cmdDict = {
     "job"      :   ["qstat", "-f"],
     "jobs"     :   ["qstat"],
     "node"     :   ["qnodes"],
-    "nodes"    :   ["qnodes"],
+    "nodes"    :   ["qnodes2"],
     "submit"   :   ["qsub"],
     "delete"   :   ["qdel"],
     "setting"  :   ["qmgr", "-c"],
@@ -35,9 +35,9 @@ var cmdDict = {
     };
 
 var nodeControlCmd = {
-    'clear'     :  "-c",
-    'offline'   :  "-o",
-    'reset'     :  "-r"
+    'clear'     :  ["-c"],
+    'offline'   :  ["-o"],
+    'reset'     :  ["-r"]
 };
 
 // Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
@@ -365,7 +365,7 @@ function qscript_js(jobArgs, localPath, callback){
 
 // Return the list of nodes
 function qnodes_js(pbs_config, controlCmd, nodeName, callback){
-    // JobId is optionnal so we test on the number of args
+    // controlCmd & nodeName are optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
         args.push(arguments[i]);
@@ -387,7 +387,7 @@ function qnodes_js(pbs_config, controlCmd, nodeName, callback){
             nodeName = args.pop();
             controlCmd = args.pop();
             remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.node);
-            remote_cmd.push(nodeControlCmd[controlCmd]);
+            remote_cmd = remote_cmd.concat(nodeControlCmd[controlCmd]);
             remote_cmd.push(nodeName);
             parseOutput = false;
             break;
