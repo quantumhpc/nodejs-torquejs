@@ -116,15 +116,19 @@ function createUID()
     });
 }
 
-function createJobWorkDir(pbs_config){
+function createJobWorkDir(pbs_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
     var jobWorkingDir = path.join(pbs_config.working_dir,createUID());
     
     //Create workdir with 700 permissions
-    spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir -m 700 "+jobWorkingDir],"shell", null, pbs_config);
+    var process = spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir -m 700 "+jobWorkingDir],"shell", null, pbs_config);
     
+    // Transmit the error if any
+    if (process.stderr){
+        return callback(new Error(process.stderr));
+    }
     //TODO:handles error
-    return jobWorkingDir;
+    return callback(null, jobWorkingDir);
 }
 
 
@@ -281,6 +285,9 @@ function jsonifyQstatF(output){
     jobName         :   String      //  'XX'
     ressources      :   String      //  'nodes=X:ppn=X or select=X'
     walltime        :   String      //  'walltime=01:00:00'
+    workdir         :   String      //  '-d'
+    stdout          :   String      //  '-o'
+    stderr          :   String      //  '-e'
     queue           :   String      //  'batch'
     exclusive       :   Boolean     //  '-n'
     mail            :   String      //  'myemail@mydomain.com'
@@ -313,6 +320,18 @@ function qscript_js(jobArgs, localPath, callback){
     
     // Job Name
     toWrite += "\n" + PBScommand + "-N " + jobName;
+    
+    // Workdir
+    toWrite += "\n" + PBScommand + "-d " + jobArgs.workdir;
+    
+    // Stdout
+    if (jobArgs.stdout !== undefined && jobArgs.stdout !== ''){
+        toWrite += "\n" + PBScommand + "-o " + jobArgs.stdout;
+    }
+    // Stderr
+    if (jobArgs.stderr !== undefined && jobArgs.stderr !== ''){
+        toWrite += "\n" + PBScommand + "-e " + jobArgs.stderr;
+    }
     
     // Ressources
     toWrite += "\n" + PBScommand + "-l " + jobArgs.ressources;
@@ -608,22 +627,24 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
 
 // Interface for qsub
 // Submit a script by its absolute path
-// Takes as args an array of required files to run with and to send to the server with the script in 0
-/* Return {
-    callack(message, jobId, jobWorkingDir)
+// qsub_js(
+/*    
+        pbs_config      :   config,
+        qsubArgs        :   array of required files to send to the server with the script in 0,
+        jobWorkingDir   :   working directory,
+        callack(message, jobId, jobWorkingDir)
 }
 */
-
-function qsub_js(pbs_config, qsubArgs, callback){
+function qsub_js(pbs_config, qsubArgs, jobWorkingDir, callback){
     var remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.submit);
     
     if(qsubArgs.length < 1) {
-        return { "code" : 1, "message" : 'Please submit the script to run'};  
+        return callback(new Error('Please submit the script to run'));  
     }
     
     // Create a workdir if not defined
     // TODO: - test if accessible
-    var jobWorkingDir = createJobWorkDir(pbs_config);
+    // var jobWorkingDir = createJobWorkDir(pbs_config);
     
     // Send files by the copy command defined
     for (var i = 0; i < qsubArgs.length; i++){
@@ -632,12 +653,12 @@ function qsub_js(pbs_config, qsubArgs, callback){
             return callback(new Error(copyCmd.stderr.replace(/\n/g,"")));
         }
     }
-    // Add script
+    // Add script: first element of qsubArgs
     var scriptName = path.basename(qsubArgs[0]);
     remote_cmd.push(path.join(jobWorkingDir,scriptName));
     
     // Add directory to submission args
-    remote_cmd.push("-d",jobWorkingDir);
+    // remote_cmd.push("-d",jobWorkingDir);
     
     // Submit
     var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
@@ -752,4 +773,5 @@ module.exports = {
     qscript_js          : qscript_js,
     qretrieve_js        : qretrieve_js,
     qfind_js            : qfind_js,
+    createJobWorkDir    : createJobWorkDir,
 };
