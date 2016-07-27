@@ -116,6 +116,7 @@ function createUID()
     });
 }
 
+// Create a unique working directory in the global working directory from the config
 function createJobWorkDir(pbs_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
     var jobWorkingDir = path.join(pbs_config.working_dir,createUID());
