@@ -202,6 +202,7 @@ function jsonifyQnodes(output){
     }
     // Reorganise status
     if (results.status){
+        var tmpStatus = {};
         var statusData = results.status.trim().split(/[,]+/);
         for (var k = 0; k < statusData.length; k+=2) {
             // Skip jobs inside status for now : TODO: store those information
@@ -210,10 +211,10 @@ function jsonifyQnodes(output){
                     k++;
                 }
             }
-            // Insert prefix for status
-            results['status_' + statusData[k]] = statusData[k+1];
+            // Create new array
+            tmpStatus[statusData[k]] = statusData[k+1];
         }
-        delete results.status;
+        results.status = tmpStatus;
     }
     return results;
 }
@@ -259,7 +260,14 @@ function jsonifyQstatF(output){
         if (output[i].indexOf(' = ')!== -1){
             // Split key and value to 0 and 1
             var data = output[i].split(' = ');
-            results[data[0].trim()] = data[1].trim();
+            // Split properties with a . for JSON
+            if (data[0].indexOf('.')!== -1){
+                var subData = data[0].trim().split('.');
+                results[subData[0]] = results[subData[0]] || {};
+                results[subData[0]][subData[1]] = data[1].trim();
+            }else{
+                results[data[0].trim()] = data[1].trim();   
+            }
         }
     }
     
