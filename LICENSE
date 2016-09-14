@@ -1,9 +1,9 @@
  ****************************************************************/
- * PBS-JS
- * A nodejs interface with the ressource manager PBS Pro™
+ * Torque-JS
+ * A nodejs interface with the ressource manager OpenPBS/Torque
  * 
- * PBS Pro™ is developped and maintained by Altair Engineering Inc.
- * Last release available : <https://github.com/PBSPro/pbspro/>
+ * Torque is currently maintained by Adaptive Computing
+ * Last release available : <http://www.adaptivecomputing.com/products/open-source/torque-resource-manager/>
  * 
  * Copyright (c) 2016 Quantum HPC Inc
  * http://www.quantumhpc.com
