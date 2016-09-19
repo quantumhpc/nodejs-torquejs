@@ -49,57 +49,57 @@ function cmdBuilder(binPath, cmdDictElement){
     spawnCmd                :   shell command   /   [file, destinationDir], 
     spawnType               :   shell           /   copy, 
     spawnDirection          :   null            /   send || retrieve, 
-    pbs_config
+    torque_config
 */
 // TODO: treat errors
-function spawnProcess(spawnCmd, spawnType, spawnDirection, pbs_config){
+function spawnProcess(spawnCmd, spawnType, spawnDirection, torque_config){
     var spawnExec;
     // UID and GID throw a core dump if not correct numbers
-    if ( Number.isNaN(pbs_config.uid) || Number.isNaN(pbs_config.gid) ) {
+    if ( Number.isNaN(torque_config.uid) || Number.isNaN(torque_config.gid) ) {
         return {stderr : "Please specify valid uid/gid"};
     }  
-    var spawnOpts = { encoding : 'utf8', uid : pbs_config.uid , gid : pbs_config.gid};
+    var spawnOpts = { encoding : 'utf8', uid : torque_config.uid , gid : torque_config.gid};
     switch (spawnType){
         case "shell":
-            switch (pbs_config.method){
+            switch (torque_config.method){
                 case "ssh":
-                    spawnExec = pbs_config.ssh_exec;
-                    spawnCmd = [pbs_config.username + "@" + pbs_config.serverName,"-o","StrictHostKeyChecking=no","-i",pbs_config.secretAccessKey].concat(spawnCmd);
+                    spawnExec = torque_config.ssh_exec;
+                    spawnCmd = [torque_config.username + "@" + torque_config.serverName,"-o","StrictHostKeyChecking=no","-i",torque_config.secretAccessKey].concat(spawnCmd);
                     break;
                 case "local":
                     spawnExec = spawnCmd.shift();
-                    spawnOpts.shell = pbs_config.local_shell;
+                    spawnOpts.shell = torque_config.local_shell;
                     break; 
             }
             break;
         //Copy the files according to the spawnCmd array : 0 is the file, 1 is the destination dir
         case "copy":
             // Special case if we can use a shared file system
-            if (pbs_config.useSharedDir){
-                spawnExec = pbs_config.local_copy;
-                spawnOpts.shell = pbs_config.local_shell;
+            if (torque_config.useSharedDir){
+                spawnExec = torque_config.local_copy;
+                spawnOpts.shell = torque_config.local_shell;
             }else{
-                switch (pbs_config.method){
+                switch (torque_config.method){
                     // Build the scp command
                     case "ssh":
-                        spawnExec = pbs_config.scp_exec;
+                        spawnExec = torque_config.scp_exec;
                         var file;
                         var destDir;
                         switch (spawnDirection){
                             case "send":
                                 file    = spawnCmd[0];
-                                destDir = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[1];
+                                destDir = torque_config.username + "@" + torque_config.serverName + ":" + spawnCmd[1];
                                 break;
                             case "retrieve":
-                                file    = pbs_config.username + "@" + pbs_config.serverName + ":" + spawnCmd[0];
+                                file    = torque_config.username + "@" + torque_config.serverName + ":" + spawnCmd[0];
                                 destDir = spawnCmd[1];
                                 break;
                         }
-                        spawnCmd = ["-o","StrictHostKeyChecking=no","-i",pbs_config.secretAccessKey,file,destDir];
+                        spawnCmd = ["-o","StrictHostKeyChecking=no","-i",torque_config.secretAccessKey,file,destDir];
                         break;
                     case "local":
-                        spawnExec = pbs_config.local_copy;
-                        spawnOpts.shell = pbs_config.local_shell;
+                        spawnExec = torque_config.local_copy;
+                        spawnOpts.shell = torque_config.local_shell;
                         break;
                 }
             }
@@ -117,12 +117,12 @@ function createUID()
 }
 
 // Create a unique working directory in the global working directory from the config
-function createJobWorkDir(pbs_config, callback){
+function createJobWorkDir(torque_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
-    var jobWorkingDir = path.join(pbs_config.working_dir,createUID());
+    var jobWorkingDir = path.join(torque_config.working_dir,createUID());
     
     //Create workdir with 700 permissions
-    var process = spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir -m 700 "+jobWorkingDir],"shell", null, pbs_config);
+    var process = spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir -m 700 "+jobWorkingDir],"shell", null, torque_config);
     
     // Transmit the error if any
     if (process.stderr){
@@ -310,8 +310,8 @@ function jsonifyQstatF(output){
 }*/
 // TODO: Consider piping the commands to qsub instead of writing script
 function qscript_js(jobArgs, localPath, callback){
-    // General PBS command inside script
-    var PBScommand = "#PBS ";
+    // General torque command inside script
+    var torquecommand = "#torque ";
     var toWrite = "# Autogenerated script";
     
     var jobName = jobArgs.jobName;
@@ -325,43 +325,43 @@ function qscript_js(jobArgs, localPath, callback){
     var scriptFullPath = path.join(localPath,jobName);
     
     // Job Shell
-    toWrite += "\n" + PBScommand + "-S " + jobArgs.shell;
+    toWrite += "\n" + torquecommand + "-S " + jobArgs.shell;
     
     // Job Name
-    toWrite += "\n" + PBScommand + "-N " + jobName;
+    toWrite += "\n" + torquecommand + "-N " + jobName;
     
     // Workdir
-    toWrite += "\n" + PBScommand + "-d " + jobArgs.workdir;
+    toWrite += "\n" + torquecommand + "-d " + jobArgs.workdir;
     
     // Stdout
     if (jobArgs.stdout !== undefined && jobArgs.stdout !== ''){
-        toWrite += "\n" + PBScommand + "-o " + jobArgs.stdout;
+        toWrite += "\n" + torquecommand + "-o " + jobArgs.stdout;
     }
     // Stderr
     if (jobArgs.stderr !== undefined && jobArgs.stderr !== ''){
-        toWrite += "\n" + PBScommand + "-e " + jobArgs.stderr;
+        toWrite += "\n" + torquecommand + "-e " + jobArgs.stderr;
     }
     
     // Ressources
-    toWrite += "\n" + PBScommand + "-l " + jobArgs.ressources;
+    toWrite += "\n" + torquecommand + "-l " + jobArgs.ressources;
     
     // Walltime: optional
     if (jobArgs.walltime !== undefined && jobArgs.walltime !== ''){
-        toWrite += "\n" + PBScommand + "-l " + jobArgs.walltime;
+        toWrite += "\n" + torquecommand + "-l " + jobArgs.walltime;
     }
     
     // Queue
-    toWrite += "\n" +  PBScommand + "-q " + jobArgs.queue;
+    toWrite += "\n" +  torquecommand + "-q " + jobArgs.queue;
     
     // Job exclusive
     if (jobArgs.exclusive){
-        toWrite += "\n" + PBScommand + "-n";
+        toWrite += "\n" + torquecommand + "-n";
     }
     
     // Send mail
     if (jobArgs.mail){
     
-    toWrite += "\n" + PBScommand + "-M " + jobArgs.mail;
+    toWrite += "\n" + torquecommand + "-M " + jobArgs.mail;
     
         // Test when to send a mail
         var mailArgs;
@@ -374,7 +374,7 @@ function qscript_js(jobArgs, localPath, callback){
         }
         
         if (mailArgs){
-            toWrite += "\n" + PBScommand + mailArgs;
+            toWrite += "\n" + torquecommand + mailArgs;
         }
     }
     
@@ -392,7 +392,7 @@ function qscript_js(jobArgs, localPath, callback){
 }
 
 // Return the list of nodes
-function qnodes_js(pbs_config, controlCmd, nodeName, callback){
+function qnodes_js(torque_config, controlCmd, nodeName, callback){
     // controlCmd & nodeName are optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
@@ -400,7 +400,7 @@ function qnodes_js(pbs_config, controlCmd, nodeName, callback){
     }
 
     // first argument is the config file
-    pbs_config = args.shift();
+    torque_config = args.shift();
 
     // last argument is the callback function
     callback = args.pop();
@@ -414,7 +414,7 @@ function qnodes_js(pbs_config, controlCmd, nodeName, callback){
             // Node control
             nodeName = args.pop();
             controlCmd = args.pop();
-            remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.node);
+            remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.node);
             remote_cmd = remote_cmd.concat(nodeControlCmd[controlCmd]);
             remote_cmd.push(nodeName);
             parseOutput = false;
@@ -422,15 +422,15 @@ function qnodes_js(pbs_config, controlCmd, nodeName, callback){
         case 1:
             // Node specific info
             nodeName = args.pop();
-            remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.node);
+            remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.node);
             remote_cmd.push(nodeName);
             break;
         default:
             // Default
-            remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.nodes);
+            remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.nodes);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr));
@@ -459,7 +459,7 @@ function qnodes_js(pbs_config, controlCmd, nodeName, callback){
 }
 
 // Return list of queues
-function qqueues_js(pbs_config, queueName, callback){
+function qqueues_js(torque_config, queueName, callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
     
@@ -468,7 +468,7 @@ function qqueues_js(pbs_config, queueName, callback){
     }
     
     // first argument is the config file
-    pbs_config = args.shift();
+    torque_config = args.shift();
 
     // last argument is the callback function
     callback = args.pop();
@@ -478,13 +478,13 @@ function qqueues_js(pbs_config, queueName, callback){
     // Info on a specific job
     if (args.length == 1){
         queueName = args.pop();
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.queue);
+        remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.queue);
         remote_cmd.push(queueName);
     }else{
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.queues);
+        remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.queues);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -504,7 +504,7 @@ function qqueues_js(pbs_config, queueName, callback){
     
 // Return list of running jobs
 // TODO: implement qstat -f
-function qstat_js(pbs_config, jobId, callback){
+function qstat_js(torque_config, jobId, callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
     // Boolean to indicate if we want the job list
@@ -515,7 +515,7 @@ function qstat_js(pbs_config, jobId, callback){
     }
 
     // first argument is the config file
-    pbs_config = args.shift();
+    torque_config = args.shift();
 
     // last argument is the callback function
     callback = args.pop();
@@ -525,14 +525,14 @@ function qstat_js(pbs_config, jobId, callback){
     // Info on a specific job
     if (args.length == 1){
         jobId = args.pop();
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.job);
+        remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.job);
         remote_cmd.push(jobId);
         jobList = false;
     }else{
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.jobs);
+        remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.jobs);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -562,7 +562,7 @@ function qstat_js(pbs_config, jobId, callback){
 
 // Interface for qdel
 // Delete the specified job Id and return the message and the status code
-function qdel_js(pbs_config,jobId,callback){
+function qdel_js(torque_config,jobId,callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
@@ -570,12 +570,12 @@ function qdel_js(pbs_config,jobId,callback){
     }
 
     // first argument is the config file
-    pbs_config = args.shift();
+    torque_config = args.shift();
 
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.delete);
+    var remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.delete);
     
     if (args.length !== 1){
         // Return an error
@@ -585,7 +585,7 @@ function qdel_js(pbs_config,jobId,callback){
         remote_cmd.push(jobId);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -597,7 +597,7 @@ function qdel_js(pbs_config,jobId,callback){
 
 // Interface for qmgr
 // For now only display server info
-function qmgr_js(pbs_config, qmgrCmd, callback){
+function qmgr_js(torque_config, qmgrCmd, callback){
     // qmgrCmd is optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
@@ -605,22 +605,22 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
     }
 
     // first argument is the config file
-    pbs_config = args.shift();
+    torque_config = args.shift();
 
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = pbs_config.binaries_dir;
+    var remote_cmd = torque_config.binaries_dir;
     if (args.length === 0){
         // Default print everything
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.settings);
+        remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.settings);
     }else{
         // TODO : handles complex qmgr commands
-        remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.setting);
+        remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.setting);
         remote_cmd.push(args.pop());
         return callback(new Error('not yet implemented'));
     }
-    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -638,14 +638,14 @@ function qmgr_js(pbs_config, qmgrCmd, callback){
 // Submit a script by its absolute path
 // qsub_js(
 /*    
-        pbs_config      :   config,
+        torque_config      :   config,
         qsubArgs        :   array of required files to send to the server with the script in 0,
         jobWorkingDir   :   working directory,
         callack(message, jobId, jobWorkingDir)
 }
 */
-function qsub_js(pbs_config, qsubArgs, jobWorkingDir, callback){
-    var remote_cmd = cmdBuilder(pbs_config.binaries_dir, cmdDict.submit);
+function qsub_js(torque_config, qsubArgs, jobWorkingDir, callback){
+    var remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.submit);
     
     if(qsubArgs.length < 1) {
         return callback(new Error('Please submit the script to run'));  
@@ -653,11 +653,11 @@ function qsub_js(pbs_config, qsubArgs, jobWorkingDir, callback){
     
     // Create a workdir if not defined
     // TODO: - test if accessible
-    // var jobWorkingDir = createJobWorkDir(pbs_config);
+    // var jobWorkingDir = createJobWorkDir(torque_config);
     
     // Send files by the copy command defined
     for (var i = 0; i < qsubArgs.length; i++){
-        var copyCmd = spawnProcess([qsubArgs[i],jobWorkingDir],"copy","send",pbs_config);
+        var copyCmd = spawnProcess([qsubArgs[i],jobWorkingDir],"copy","send",torque_config);
         if (copyCmd.stderr){
             return callback(new Error(copyCmd.stderr.replace(/\n/g,"")));
         }
@@ -670,7 +670,7 @@ function qsub_js(pbs_config, qsubArgs, jobWorkingDir, callback){
     // remote_cmd.push("-d",jobWorkingDir);
     
     // Submit
-    var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr.replace(/\n/g,"")));
@@ -690,23 +690,23 @@ function qsub_js(pbs_config, qsubArgs, jobWorkingDir, callback){
     callack(message)
 }*/
 
-function qfind_js(pbs_config, jobId, callback){
+function qfind_js(torque_config, jobId, callback){
     
     // Check if the user is the owner of the job
-    qstat_js(pbs_config,jobId, function(err,data){
+    qstat_js(torque_config,jobId, function(err,data){
         if(err){
             return callback(err,data);
         }
         
         // Check if the user downloads the appropriate files
-        var jobWorkingDir = path.resolve(data.Variable_List.PBS_O_WORKDIR);
+        var jobWorkingDir = path.resolve(data.Variable_List.torque_O_WORKDIR);
         
         // Remote find command
         // TOOD: put in config file
         var remote_cmd = ["find", jobWorkingDir,"-type f", "&& find", jobWorkingDir, "-type d"];
         
         // List the content of the working dir
-        var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+        var output = spawnProcess(remote_cmd,"shell",null,torque_config);
         // Transmit the error if any
         if (output.stderr){
             return callback(new Error(output.stderr.replace(/\n/g,"")));
@@ -739,16 +739,16 @@ function qfind_js(pbs_config, jobId, callback){
 
 }
 
-function qretrieve_js(pbs_config, jobId, fileList, localDir, callback){
+function qretrieve_js(torque_config, jobId, fileList, localDir, callback){
     
     // Check if the user is the owner of the job
-    qstat_js(pbs_config,jobId, function(err,data){
+    qstat_js(torque_config,jobId, function(err,data){
         if(err){
             return callback(err,data);
         }
         
         // Check if the user downloads the appropriate files
-        var jobWorkingDir = path.resolve(data.Variable_List.PBS_O_WORKDIR);
+        var jobWorkingDir = path.resolve(data.Variable_List.torque_O_WORKDIR);
         
         for (var file in fileList){
             var filePath = fileList[file];
@@ -760,7 +760,7 @@ function qretrieve_js(pbs_config, jobId, fileList, localDir, callback){
             
             // Retrieve the file
             // TODO: treat individual error on each file
-            var copyCmd = spawnProcess([filePath,localDir],"copy","retrieve",pbs_config);
+            var copyCmd = spawnProcess([filePath,localDir],"copy","retrieve",torque_config);
             if (copyCmd.stderr){
                 return callback(new Error(copyCmd.stderr.replace(/\n/g,"")));
             }
