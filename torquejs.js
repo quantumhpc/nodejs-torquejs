@@ -666,8 +666,8 @@ function qsub_js(torque_config, qsubArgs, jobWorkingDir, callback){
     var scriptName = path.basename(qsubArgs[0]);
     remote_cmd.push(path.join(jobWorkingDir,scriptName));
     
-    // Add directory to submission args
-    // remote_cmd.push("-d",jobWorkingDir);
+    // Add directory to submission args to copy back error and output logs
+    remote_cmd.push("-d",jobWorkingDir);
     
     // Submit
     var output = spawnProcess(remote_cmd,"shell",null,torque_config);
