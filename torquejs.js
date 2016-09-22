@@ -260,14 +260,7 @@ function jsonifyQstatF(output){
         if (output[i].indexOf(' = ')!== -1){
             // Split key and value to 0 and 1
             var data = output[i].split(' = ');
-            // Split properties with a . for JSON
-            if (data[0].indexOf('.')!== -1){
-                var subData = data[0].trim().split('.');
-                results[subData[0]] = results[subData[0]] || {};
-                results[subData[0]][subData[1]] = data[1].trim();
-            }else{
-                results[data[0].trim()] = data[1].trim();   
-            }
+            results[data[0].trim()] = data[1].trim();   
         }
     }
     
