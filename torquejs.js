@@ -1,8 +1,18 @@
-var cproc = require('child_process');
-var spawn = cproc.spawnSync;
+var hpc = require("../hpc_exec_wrapper");
 var fs = require("fs");
 var path = require("path");
-var jobStatus = {'Q' : 'Queued', 'R' : 'Running', 'C' : 'Completed', 'E' : 'Exiting', 'H' : 'Held', 'T' : 'Moving', 'W' : 'Waiting'};
+var os = require("os");
+
+var jobStatus = {
+    'Q' : 'Queued', 
+    'R' : 'Running', 
+    'C' : 'Completed', 
+    'E' : 'Exiting', 
+    'H' : 'Held', 
+    'T' : 'Moving',
+    'W' : 'Waiting'
+};
+
 // General command dictionnary keeping track of implemented features
 var cmdDict = {
     "queue"    :   ["qstat", "-Q"],
@@ -27,94 +37,18 @@ var nodeControlCmd = {
 function cmdBuilder(binPath, cmdDictElement){
     return [path.join(binPath, cmdDictElement[0])].concat(cmdDictElement.slice(1,cmdDictElement.length));
 }
-// Parse the command and return stdout of the process depending on the method
-/*
-    spawnCmd                :   shell command   /   [file, destinationDir], 
-    spawnType               :   shell           /   copy, 
-    spawnDirection          :   null            /   send || retrieve, 
-    torque_config
-*/
-// TODO: treat errors
-function spawnProcess(spawnCmd, spawnType, spawnDirection, torque_config){
-    var spawnExec;
-    // UID and GID throw a core dump if not correct numbers
-    if ( Number.isNaN(torque_config.uid) || Number.isNaN(torque_config.gid) ) {
-        return {stderr : "Please specify valid uid/gid"};
-    }  
-    var spawnOpts = { encoding : 'utf8', uid : torque_config.uid , gid : torque_config.gid};
-    switch (spawnType){
-        case "shell":
-            switch (torque_config.method){
-                case "ssh":
-                    spawnExec = torque_config.ssh_exec;
-                    spawnCmd = [torque_config.username + "@" + torque_config.serverName,"-o","StrictHostKeyChecking=no","-i",torque_config.secretAccessKey].concat(spawnCmd);
-                    break;
-                case "local":
-                    spawnExec = spawnCmd.shift();
-                    spawnOpts.shell = torque_config.local_shell;
-                    break; 
-            }
-            break;
-        //Copy the files according to the spawnCmd array : 0 is the file, 1 is the destination dir
-        case "copy":
-            // Special case if we can use a shared file system
-            if (torque_config.useSharedDir){
-                spawnExec = torque_config.local_copy;
-                spawnOpts.shell = torque_config.local_shell;
-            }else{
-                switch (torque_config.method){
-                    // Build the scp command
-                    case "ssh":
-                        spawnExec = torque_config.scp_exec;
-                        var file;
-                        var destDir;
-                        switch (spawnDirection){
-                            case "send":
-                                file    = spawnCmd[0];
-                                destDir = torque_config.username + "@" + torque_config.serverName + ":" + spawnCmd[1];
-                                break;
-                            case "retrieve":
-                                file    = torque_config.username + "@" + torque_config.serverName + ":" + spawnCmd[0];
-                                destDir = spawnCmd[1];
-                                break;
-                        }
-                        spawnCmd = ["-o","StrictHostKeyChecking=no","-i",torque_config.secretAccessKey,file,destDir];
-                        break;
-                    case "local":
-                        spawnExec = torque_config.local_copy;
-                        spawnOpts.shell = torque_config.local_shell;
-                        break;
-                }
-            }
-            break;
-    }
-    return spawn(spawnExec, spawnCmd, spawnOpts);
+
+function getMountedPath(pbs_config, remotePath){
+    return hpc.getMountedPath.apply(null, arguments);
 }
 
-function createUID()
-{
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
-        return v.toString(16);
-    });
+function getOriginalPath(pbs_config, remotePath){
+    return hpc.getOriginalPath.apply(null, arguments);
 }
 
-// Create a unique working directory in the global working directory from the config
-function createJobWorkDir(torque_config, callback){
-    // Get configuration working directory and Generate a UID for the working dir
-    var jobWorkingDir = path.join(torque_config.working_dir,createUID());
-    
-    //Create workdir with 700 permissions
-    var process = spawnProcess(["[ -d "+jobWorkingDir+" ] || mkdir -m 700 "+jobWorkingDir],"shell", null, torque_config);
-    
-    // Transmit the error if any
-    if (process.stderr){
-        return callback(new Error(process.stderr));
-    }
-    //TODO:handles error
-    return callback(null, jobWorkingDir);
+function createJobWorkDir(pbs_config, folder, callback){
+    return hpc.createJobWorkDir.apply(null, arguments);
 }
-
 
 //Takes an array to convert to JSON tree for queues and server properties
 function jsonifyQmgr(output){
@@ -301,43 +235,43 @@ function qscript_js(jobArgs, localPath, callback){
     var scriptFullPath = path.join(localPath,jobName);
     
     // Job Shell
-    toWrite += "\n" + PBScommand + "-S " + jobArgs.shell;
+    toWrite += os.EOL + PBScommand + "-S " + jobArgs.shell;
     
     // Job Name
-    toWrite += "\n" + PBScommand + "-N " + jobName;
+    toWrite += os.EOL + PBScommand + "-N " + jobName;
     
     // Workdir
-    toWrite += "\n" + PBScommand + "-d " + jobArgs.workdir;
+    toWrite += os.EOL + PBScommand + "-d " + jobArgs.workdir;
     
     // Stdout
     if (jobArgs.stdout !== undefined && jobArgs.stdout !== ''){
-        toWrite += "\n" + PBScommand + "-o " + jobArgs.stdout;
+        toWrite += os.EOL + PBScommand + "-o " + jobArgs.stdout;
     }
     // Stderr
     if (jobArgs.stderr !== undefined && jobArgs.stderr !== ''){
-        toWrite += "\n" + PBScommand + "-e " + jobArgs.stderr;
+        toWrite += os.EOL + PBScommand + "-e " + jobArgs.stderr;
     }
     
     // Ressources
-    toWrite += "\n" + PBScommand + "-l " + jobArgs.ressources;
+    toWrite += os.EOL + PBScommand + "-l " + jobArgs.ressources;
     
     // Walltime: optional
     if (jobArgs.walltime !== undefined && jobArgs.walltime !== ''){
-        toWrite += "\n" + PBScommand + "-l " + jobArgs.walltime;
+        toWrite += os.EOL + PBScommand + "-l " + jobArgs.walltime;
     }
     
     // Queue
-    toWrite += "\n" +  PBScommand + "-q " + jobArgs.queue;
+    toWrite += os.EOL +  PBScommand + "-q " + jobArgs.queue;
     
     // Job exclusive
     if (jobArgs.exclusive){
-        toWrite += "\n" + PBScommand + "-n";
+        toWrite += os.EOL + PBScommand + "-n";
     }
     
     // Send mail
     if (jobArgs.mail){
     
-    toWrite += "\n" + PBScommand + "-M " + jobArgs.mail;
+    toWrite += os.EOL + PBScommand + "-M " + jobArgs.mail;
     
         // Test when to send a mail
         var mailArgs;
@@ -350,14 +284,14 @@ function qscript_js(jobArgs, localPath, callback){
         }
         
         if (mailArgs){
-            toWrite += "\n" + PBScommand + mailArgs;
+            toWrite += os.EOL + PBScommand + mailArgs;
         }
     }
     
     // Write commands in plain shell including carriage returns
-    toWrite += "\n" + jobArgs.commands;
+    toWrite += os.EOL + jobArgs.commands;
     
-    toWrite += "\n";
+    toWrite += os.EOL;
     // Write to script
     fs.writeFileSync(scriptFullPath,toWrite);
     
@@ -406,7 +340,7 @@ function qnodes_js(torque_config, controlCmd, nodeName, callback){
             remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.nodes);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,torque_config);
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr));
@@ -416,7 +350,7 @@ function qnodes_js(torque_config, controlCmd, nodeName, callback){
         //Detect empty values
         output = output.stdout.replace(/=,/g,"=null,");
         //Separate each node
-        output = output.split('\n\n');
+        output = output.split(os.EOL+os.EOL);
         var nodes = [];
         //Loop on each node
         for (var j = 0; j < output.length; j++) {
@@ -460,14 +394,14 @@ function qqueues_js(torque_config, queueName, callback){
         remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.queues);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr));
     }
     
-    output = output.stdout.split('\n');
+    output = output.stdout.split(os.EOL);
     // First 2 lines are not relevant
     var queues = [];
     for (var j = 2; j < output.length-1; j++) {
@@ -508,7 +442,7 @@ function qstat_js(torque_config, jobId, callback){
         remote_cmd = cmdBuilder(torque_config.binaries_dir, cmdDict.jobs);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -521,7 +455,7 @@ function qstat_js(torque_config, jobId, callback){
     }
     
     if (jobList){
-        output = output.stdout.split('\n');
+        output = output.stdout.split(os.EOL);
         // First 2 lines are not relevant
         var jobs = [];
         for (var j = 2; j < output.length-1; j++) {
@@ -530,7 +464,7 @@ function qstat_js(torque_config, jobId, callback){
         }
         return callback(null, jobs);
     }else{
-        output = output.stdout.replace(/\n\t/g,"").split('\n');
+        output = output.stdout.replace(/\n\t/g,"").split(os.EOL);
         output = jsonifyQstatF(output);
         return callback(null, output);
     }
@@ -561,7 +495,7 @@ function qdel_js(torque_config,jobId,callback){
         remote_cmd.push(jobId);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
@@ -596,14 +530,14 @@ function qmgr_js(torque_config, qmgrCmd, callback){
         remote_cmd.push(args.pop());
         return callback(new Error('not yet implemented'));
     }
-    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,torque_config);
     
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr));
     }
     
-    output = output.stdout.split('\n');
+    output = output.stdout.split(os.EOL);
     var qmgrInfo = jsonifyQmgr(output);
     
     return callback(null, qmgrInfo);
@@ -633,7 +567,7 @@ function qsub_js(torque_config, qsubArgs, jobWorkingDir, callback){
     
     // Send files by the copy command defined
     for (var i = 0; i < qsubArgs.length; i++){
-        var copyCmd = spawnProcess([qsubArgs[i],jobWorkingDir],"copy","send",torque_config);
+        var copyCmd = hpc.spawn([qsubArgs[i],jobWorkingDir],"copy","send",torque_config);
         if (copyCmd.stderr){
             return callback(new Error(copyCmd.stderr.replace(/\n/g,"")));
         }
@@ -646,7 +580,7 @@ function qsub_js(torque_config, qsubArgs, jobWorkingDir, callback){
     remote_cmd.push("-d",jobWorkingDir);
     
     // Submit
-    var output = spawnProcess(remote_cmd,"shell",null,torque_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,torque_config);
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr.replace(/\n/g,"")));
@@ -682,12 +616,12 @@ function qfind_js(torque_config, jobId, callback){
         var remote_cmd = ["find", jobWorkingDir,"-type f", "&& find", jobWorkingDir, "-type d"];
         
         // List the content of the working dir
-        var output = spawnProcess(remote_cmd,"shell",null,torque_config);
+        var output = hpc.spawn(remote_cmd,"shell",null,torque_config);
         // Transmit the error if any
         if (output.stderr){
             return callback(new Error(output.stderr.replace(/\n/g,"")));
         }
-        output = output.stdout.split('\n');
+        output = output.stdout.split(os.EOL);
         
         var fileList        = [];
         fileList.files      = [];
@@ -736,7 +670,7 @@ function qretrieve_js(torque_config, jobId, fileList, localDir, callback){
             
             // Retrieve the file
             // TODO: treat individual error on each file
-            var copyCmd = spawnProcess([filePath,localDir],"copy","retrieve",torque_config);
+            var copyCmd = hpc.spawn([filePath,localDir],"copy","retrieve",torque_config);
             if (copyCmd.stderr){
                 return callback(new Error(copyCmd.stderr.replace(/\n/g,"")));
             }
@@ -759,4 +693,6 @@ module.exports = {
     qretrieve_js        : qretrieve_js,
     qfind_js            : qfind_js,
     createJobWorkDir    : createJobWorkDir,
+    getMountedPath      : getMountedPath,
+    getOriginalPath     : getOriginalPath
 };
