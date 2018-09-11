@@ -1,4 +1,4 @@
-var hpc = require("../hpc_exec_wrapper");
+var hpc = require("../hpc_exec_wrapper/exec.js");
 var fs = require("fs");
 var path = require("path");
 var os = require("os");
